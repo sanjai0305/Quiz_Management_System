@@ -32,6 +32,12 @@ async function startServer() {
     });
   };
 
+  // Request logging for debugging production connectivity
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
   // --- API Routes ---
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -333,7 +339,7 @@ async function startServer() {
 
   const PORT = process.env.PORT || 3000;
   app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server is live and listening on 0.0.0.0:${PORT}`);
   });
 }
 
