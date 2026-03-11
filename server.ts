@@ -317,7 +317,9 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files from the dist directory
-    const distPath = path.join(__dirname, 'dist');
+    const distPath = path.resolve(__dirname, 'dist');
+    console.log('Serving production build from:', distPath);
+    
     app.use(express.static(distPath));
     
     // Fallback to index.html for SPA routing
