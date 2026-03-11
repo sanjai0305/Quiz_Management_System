@@ -1,0 +1,22 @@
+{
+  "name": "MIT SmartQuiz AI",
+  "short_name": "SmartQuiz",
+  "description": "Secure AI-Powered Quiz Management System for Mahendra Institute of Technology",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#141414",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/mit-logo/192/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://picsum.photos/seed/mit-logo/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
