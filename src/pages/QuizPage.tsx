@@ -133,15 +133,6 @@ export default function QuizPage() {
                 <p className="text-[10px] opacity-60 leading-relaxed">System integrity check completed. Browser environment is locked for this assessment.</p>
               </div>
             </div>
-            {user?.priority_type && user.priority_type !== 'general' && (
-              <div className="flex items-start gap-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                <Accessibility className="text-indigo-600 mt-1" size={20} />
-                <div>
-                  <p className="text-xs font-bold uppercase mb-1">Priority Assistance</p>
-                  <p className="text-[10px] opacity-60 leading-relaxed">Special accommodations for {user.priority_type} are active. Font size and navigation are optimized.</p>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="pt-6">
@@ -202,25 +193,30 @@ export default function QuizPage() {
   const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
-  // Accessibility Styles
-  const isSpecial = user?.priority_type && user.priority_type !== 'general';
-  const fontSizeClass = user?.priority_type === 'children' ? 'text-2xl' : 'text-xl';
+  const fontSizeClass = 'text-xl';
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
       <div className="lg:col-span-3 space-y-8">
-        <header className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+        <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
         <div>
           <h2 className="text-xl font-bold uppercase tracking-tight">{quiz.title}</h2>
-          <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject} • Stage {quiz.stage}</p>
+          <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject} • {quiz.year}{quiz.year === 1 ? 'st' : quiz.year === 2 ? 'nd' : quiz.year === 3 ? 'rd' : 'th'} Year</p>
         </div>
         
         <div className="flex items-center gap-6">
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 ${timeLeft < 60 ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-gray-50 border-[#141414]/10'}`}>
-            <Clock size={18} />
-            <span className="font-mono font-bold text-lg">
-              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-            </span>
+          <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
+            timeLeft < 60 
+              ? 'bg-red-600 border-[#141414] text-white shadow-[4px_4px_0px_0px_rgba(220,38,38,0.3)] animate-pulse' 
+              : 'bg-white border-[#141414] text-[#141414] shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]'
+          }`}>
+            <Clock size={24} />
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Time Remaining</span>
+              <span className="font-mono font-black text-2xl leading-none">
+                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
           </div>
           <div className="hidden sm:flex items-center gap-1.5">
             {quiz.questions?.map((q, i) => {
@@ -256,15 +252,6 @@ export default function QuizPage() {
               <h3 className={`font-bold leading-tight ${fontSizeClass}`}>
                 {currentIdx + 1}. {currentQuestion.question_text}
               </h3>
-              {isSpecial && (
-                <button 
-                  onClick={() => speak(currentQuestion.question_text)}
-                  className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-colors"
-                  title="Read Aloud"
-                >
-                  <Volume2 size={24} />
-                </button>
-              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -377,18 +364,6 @@ export default function QuizPage() {
             </div>
           </div>
         </div>
-
-        {isSpecial && (
-          <div className="bg-indigo-600 text-white p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(79,70,229,0.3)]">
-            <div className="flex items-center gap-2 mb-2">
-              <Accessibility size={16} />
-              <h4 className="text-[10px] font-bold uppercase tracking-widest">Priority Support</h4>
-            </div>
-            <p className="text-[10px] font-medium leading-relaxed opacity-80">
-              Enhanced accessibility features are active for your session. Use Arrow Keys to navigate and Space to select.
-            </p>
-          </div>
-        )}
       </aside>
     </div>
   );

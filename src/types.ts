@@ -7,14 +7,15 @@ export interface User {
   mobile?: string;
   role: 'admin' | 'student';
   department?: string;
+  section?: 'A' | 'B';
   profile_picture?: string;
-  priority_type?: 'general' | 'children' | 'disability' | 'senior' | 'special_needs';
+  year?: number;
+  priority_category?: 'none' | 'children' | 'disability' | 'senior';
   security_status?: {
     camera_active: boolean;
     os_secure: boolean;
     browser_lock: boolean;
   };
-  current_stage?: number;
 }
 
 export interface Quiz {
@@ -22,7 +23,7 @@ export interface Quiz {
   title: string;
   subject: string;
   time_limit: number;
-  stage: number;
+  year: number;
   questions?: Question[];
 }
 
@@ -38,6 +39,9 @@ export interface Question {
 }
 
 export interface Attempt {
+  id: number;
+  student_id: number;
+  quiz_id: number;
   name: string;
   registration_number: string;
   quiz_name: string;

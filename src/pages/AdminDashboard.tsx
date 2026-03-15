@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock, Send, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications' | 'security'>('students');
   const { token, user } = useAuth();
 
   return (
@@ -16,10 +16,12 @@ export default function AdminDashboard() {
           <p className="text-sm font-medium uppercase tracking-widest opacity-50">System Management & Oversight</p>
         </div>
         
-        <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+        <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] overflow-x-auto">
           <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
           <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
           <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
+          <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Send size={18} />} label="Alerts" />
+          <TabButton active={activeTab === 'security'} onClick={() => setActiveTab('security')} icon={<ShieldCheck size={18} />} label="Security" />
         </div>
       </header>
 
@@ -27,6 +29,8 @@ export default function AdminDashboard() {
         {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
         {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
         {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
+        {activeTab === 'notifications' && <div key="notifications"><NotificationCenter token={token!} /></div>}
+        {activeTab === 'security' && <div key="security"><SecurityCenter token={token!} /></div>}
       </AnimatePresence>
     </div>
   );
@@ -47,19 +51,36 @@ function TabButton({ active, onClick, icon, label }: { active: boolean, onClick:
 // --- Student Manager ---
 function StudentManager({ token }: { token: string }) {
   const [students, setStudents] = useState<User[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [search, setSearch] = useState('');
+  
+  // Drill-down state
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+
   const [showAdd, setShowAdd] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStudents = async () => {
-    const res = await fetch('/api/students', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setStudents(data);
-    setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [sRes, qRes, aRes] = await Promise.all([
+        fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      setStudents(await sRes.json());
+      setQuizzes(await qRes.json());
+      setAttempts(await aRes.json());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteStudent = async (id: number) => {
@@ -68,17 +89,27 @@ function StudentManager({ token }: { token: string }) {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
-      fetchStudents();
+      fetchData();
       setStudentToDelete(null);
     }
   };
 
-  useEffect(() => { fetchStudents(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
-    s.registration_number?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
+                         s.registration_number?.toLowerCase().includes(search.toLowerCase());
+    const matchesYear = selectedYear === null || s.year === selectedYear;
+    const matchesDept = selectedDept === null || s.department === selectedDept;
+    const matchesSection = selectedSection === null || s.section === selectedSection;
+    return matchesSearch && matchesYear && matchesDept && matchesSection;
+  });
+
+  const resetNav = () => {
+    setSelectedYear(null);
+    setSelectedDept(null);
+    setSelectedSection(null);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
@@ -114,11 +145,11 @@ function StudentManager({ token }: { token: string }) {
             </div>
             <h4 className="text-xs font-bold uppercase tracking-widest">Priority Access</h4>
           </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Mode: Stage-Wise Enabled</p>
-          <div className="flex gap-1">
-            <div className="h-1.5 flex-1 bg-amber-500 rounded-full" />
-            <div className="h-1.5 flex-1 bg-amber-500 rounded-full" />
-            <div className="h-1.5 flex-1 bg-amber-500 rounded-full" />
+          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Mode: Inclusive Stage-Wise</p>
+          <div className="flex flex-wrap gap-1">
+            <span className="text-[8px] font-black uppercase bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">Children</span>
+            <span className="text-[8px] font-black uppercase bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100">Disability</span>
+            <span className="text-[8px] font-black uppercase bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded border border-orange-100">Senior</span>
           </div>
         </div>
       </div>
@@ -126,120 +157,178 @@ function StudentManager({ token }: { token: string }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h3 className="text-xl font-bold uppercase tracking-tight">Student Registry</h3>
-          <p className="text-[10px] font-bold uppercase opacity-40">Manage enrolled student accounts and biometrics</p>
+          <p className="text-[10px] font-bold uppercase opacity-40">Hierarchical Management System</p>
         </div>
-        <button 
-          onClick={() => setShowAdd(true)}
-          className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all shadow-brutal-sm"
-        >
-          <Plus size={16} /> Enroll Student
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowAdd(true)}
+            className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all shadow-brutal-sm"
+          >
+            <Plus size={16} /> Enroll Student
+          </button>
+        </div>
       </div>
 
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="Search by name or registration number..."
-          className="w-full p-4 pl-12 bg-white border-2 border-[#141414] rounded-2xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <Users className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" size={20} />
-      </div>
+      {/* Drill-down Navigation */}
+      <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm">
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-2 mb-8 text-[10px] font-black uppercase tracking-widest">
+          <button onClick={resetNav} className={`hover:text-indigo-600 transition-colors ${!selectedYear ? 'text-indigo-600' : 'opacity-40'}`}>Registry</button>
+          {selectedYear && (
+            <>
+              <ChevronRight size={12} className="opacity-20" />
+              <button onClick={() => { setSelectedDept(null); setSelectedSection(null); }} className={`hover:text-indigo-600 transition-colors ${!selectedDept ? 'text-indigo-600' : 'opacity-40'}`}>{selectedYear}{selectedYear === 1 ? 'st' : selectedYear === 2 ? 'nd' : selectedYear === 3 ? 'rd' : 'th'} Year</button>
+            </>
+          )}
+          {selectedDept && (
+            <>
+              <ChevronRight size={12} className="opacity-20" />
+              <button onClick={() => setSelectedSection(null)} className={`hover:text-indigo-600 transition-colors ${!selectedSection ? 'text-indigo-600' : 'opacity-40'}`}>{selectedDept}</button>
+            </>
+          )}
+          {selectedSection && (
+            <>
+              <ChevronRight size={12} className="opacity-20" />
+              <span className="text-indigo-600">Section {selectedSection}</span>
+            </>
+          )}
+        </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredStudents.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-[#141414]/10 p-12 rounded-[2.5rem] text-center">
-          <p className="text-sm font-bold uppercase opacity-30">No students found in the registry</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map(student => (
-            <motion.div 
-              layout
-              key={student.id} 
-              className="bg-white border-2 border-[#141414] p-6 rounded-[2rem] shadow-brutal-sm hover:shadow-brutal transition-all"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl overflow-hidden border-2 border-[#141414]/5 flex items-center justify-center">
-                  {student.profile_picture ? (
-                    <img src={student.profile_picture} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <UserIcon size={24} />
-                  )}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Level 1: Year Selection */}
+            {!selectedYear && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(year => (
+                  <button 
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                  >
+                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <span className="text-2xl font-black">{year}</span>
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-widest">Year {year}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Level 2: Department Selection */}
+            {selectedYear && !selectedDept && (
+              <div className="grid grid-cols-2 gap-6">
+                {['AIML', 'IT'].map(dept => (
+                  <button 
+                    key={dept}
+                    onClick={() => setSelectedDept(dept)}
+                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                  >
+                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <Cpu size={32} />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-widest">{dept} Dept</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Level 3: Section Selection */}
+            {selectedYear && selectedDept && !selectedSection && (
+              <div className="grid grid-cols-2 gap-6">
+                {['A', 'B'].map(sec => (
+                  <button 
+                    key={sec}
+                    onClick={() => setSelectedSection(sec)}
+                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                  >
+                    <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                      <span className="text-2xl font-black">{sec}</span>
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-widest">Section {sec}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Level 4: Student List */}
+            {selectedYear && selectedDept && selectedSection && (
+              <div className="space-y-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search students in this section..."
+                    className="w-full p-4 pl-12 bg-gray-50 border-2 border-[#141414] rounded-2xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" size={20} />
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setSelectedStudent(student)}
-                      className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="View Profile"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button 
-                      onClick={() => setStudentToDelete(student.id)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Student"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                    {student.department && (
-                      <span className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-emerald-100">
-                        {student.department}
-                      </span>
-                    )}
-                    {student.priority_type && student.priority_type !== 'general' && (
-                      <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-amber-100 flex items-center gap-1">
-                        <Accessibility size={10} />
-                        {student.priority_type}
-                      </span>
-                    )}
+
+                {filteredStudents.length === 0 ? (
+                  <div className="text-center py-12 opacity-30 font-bold uppercase text-xs">No students found in this section</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredStudents.map(student => (
+                      <button 
+                        key={student.id}
+                        onClick={() => setSelectedStudent(student)}
+                        className="flex items-center justify-between p-4 bg-white border-2 border-[#141414] rounded-2xl shadow-brutal-sm hover:shadow-brutal transition-all text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-indigo-50 rounded-xl overflow-hidden border border-[#141414]/10">
+                            {student.profile_picture ? (
+                              <img src={student.profile_picture} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={20} /></div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm uppercase tracking-tight">{student.name}</h4>
+                            <p className="text-[10px] font-mono font-bold text-indigo-600">{student.registration_number}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-black uppercase opacity-30">{student.year}yr</span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <span className="bg-gray-50 text-gray-500 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-gray-100">
-                    ID: {student.id}
-                  </span>
-                </div>
+                )}
               </div>
-              
-              <h4 className="font-bold text-lg leading-tight mb-1">{student.name}</h4>
-              <p className="text-xs font-mono font-bold text-indigo-600 mb-4">{student.registration_number}</p>
-              
-              <div className="space-y-3 pt-4 border-t border-[#141414]/5">
-                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                  <span className="opacity-40">Date of Birth</span>
-                  <span>{student.date_of_birth}</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                  <span className="opacity-40">Mobile</span>
-                  <span>{student.mobile}</span>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
-      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} onAdded={fetchStudents} token={token} />}
-      {selectedStudent && <StudentProfileModal student={selectedStudent} onClose={() => setSelectedStudent(null)} token={token} />}
+      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} onAdded={fetchData} token={token} />}
+      {selectedStudent && (
+        <StudentProfileModal 
+          student={selectedStudent} 
+          onClose={() => setSelectedStudent(null)} 
+          token={token} 
+          quizzes={quizzes}
+          attempts={attempts.filter(a => a.student_id === selectedStudent.id)}
+        />
+      )}
       
       <AnimatePresence>
         {studentToDelete && (
           <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white border-2 border-[#141414] w-full max-w-sm rounded-3xl p-8 text-center space-y-6">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto">
-                <AlertCircle size={32} />
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+                <Trash2 size={32} />
               </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold uppercase tracking-tight">Confirm Deletion</h3>
-                <p className="text-xs opacity-50 leading-relaxed font-medium">Are you sure you want to delete this student registration? This will also delete all their quiz attempts. This action cannot be undone.</p>
+              <div>
+                <h3 className="text-xl font-bold uppercase">Confirm Deletion</h3>
+                <p className="text-xs opacity-50 mt-2 font-medium">This action is irreversible. All student data and quiz history will be lost.</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setStudentToDelete(null)} className="py-3 bg-gray-100 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
-                <button onClick={() => handleDeleteStudent(studentToDelete)} className="py-3 bg-red-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-600 transition-all">Delete</button>
+              <div className="flex gap-3">
+                <button onClick={() => setStudentToDelete(null)} className="flex-1 py-3 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase tracking-widest">Cancel</button>
+                <button onClick={() => handleDeleteStudent(studentToDelete)} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-700">Delete</button>
               </div>
             </motion.div>
           </div>
@@ -249,160 +338,91 @@ function StudentManager({ token }: { token: string }) {
   );
 }
 
-function StudentProfileModal({ student, onClose, token }: { student: User, onClose: () => void, token: string }) {
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/admin/student/${student.id}/results`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      setResults(data);
-      setLoading(false);
-    });
-  }, [student.id, token]);
+// --- Student Profile Modal ---
+function StudentProfileModal({ student, onClose, token, quizzes, attempts }: { student: User, onClose: () => void, token: string, quizzes: Quiz[], attempts: Attempt[] }) {
+  const completedQuizzes = attempts.length;
+  const totalQuizzesForYear = quizzes.filter(q => q.year === student.year).length;
+  const pendingQuizzes = Math.max(0, totalQuizzesForYear - completedQuizzes);
+  const averageScore = attempts.length > 0 
+    ? (attempts.reduce((acc, curr) => acc + curr.score, 0) / attempts.length).toFixed(1) 
+    : '0';
 
   return (
-    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-4xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg overflow-hidden flex items-center justify-center">
+    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-8 border-b border-[#141414]/10 flex justify-between items-center">
+          <h3 className="text-xl font-black uppercase tracking-tight">Student Profile</h3>
+          <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
+        </div>
+
+        <div className="p-8 overflow-y-auto space-y-8">
+          <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
+            <div className="w-32 h-32 bg-indigo-50 border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm">
               {student.profile_picture ? (
                 <img src={student.profile_picture} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
-                <UserIcon size={20} />
+                <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={48} /></div>
               )}
             </div>
-            <div>
-              <h3 className="text-xl font-bold uppercase tracking-tight">Student Profile</h3>
-              <p className="text-[10px] font-bold opacity-40 uppercase">Viewing: {student.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => window.open(`/student-preview/${student.id}`, '_blank')}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2"
-            >
-              <Eye size={14} /> Student Preview
-            </button>
-            <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Personal Information</h4>
-              <div className="space-y-3">
+            <div className="flex-1 text-center md:text-left space-y-4">
+              <div>
+                <h4 className="text-3xl font-black uppercase tracking-tighter leading-none">{student.name}</h4>
+                <p className="text-sm font-mono font-bold text-indigo-600 mt-2">{student.registration_number}</p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Full Name</p>
-                  <p className="font-bold text-lg">{student.name}</p>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Academic Year</p>
+                  <p className="font-bold text-lg">{student.year || 1}{student.year === 1 ? 'st' : student.year === 2 ? 'nd' : student.year === 3 ? 'rd' : 'th'} Year</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Registration Number</p>
-                  <p className="font-mono font-bold text-indigo-600">{student.registration_number}</p>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Department</p>
+                  <p className="font-bold text-lg">{student.department}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Date of Birth</p>
-                  <p className="font-bold">{student.date_of_birth}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Priority Category</p>
-                  <p className="font-bold uppercase text-amber-600">{student.priority_type || 'General'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Current Academic Stage</p>
-                  <p className="font-black text-2xl text-indigo-600">STAGE {student.current_stage || 1}</p>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Section</p>
+                  <p className="font-bold text-lg">Section {student.section || 'A'}</p>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Security & OS Status</h4>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="text-emerald-600" size={20} />
-                    <span className="text-xs font-bold uppercase">OS Security</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase">Verified</span>
-                </div>
-                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Camera className="text-blue-600" size={20} />
-                    <span className="text-xs font-bold uppercase">Camera Facility</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-blue-600 uppercase">Active</span>
-                </div>
-                <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Lock className="text-indigo-600" size={20} />
-                    <span className="text-xs font-bold uppercase">Browser Lock</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-indigo-600 uppercase">Enabled</span>
-                </div>
-              </div>
+          {/* Quiz Performance Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-3xl text-center">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Completed</p>
+              <p className="text-3xl font-black text-emerald-700">{completedQuizzes}</p>
+              <p className="text-[10px] font-bold opacity-40 uppercase">Quizzes</p>
             </div>
-
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Academic Status</h4>
-              <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <BookOpen size={16} className="text-indigo-600" />
-                  <p className="text-[10px] font-bold uppercase text-indigo-600">Department</p>
-                </div>
-                <p className="font-black text-2xl text-indigo-900 uppercase">{student.department}</p>
-                <p className="text-[10px] font-medium text-indigo-600/60 mt-2 leading-relaxed">
-                  Enrolled in the {student.department} department for the current academic session.
-                </p>
-              </div>
-              {student.priority_type && student.priority_type !== 'general' && (
-                <div className="bg-emerald-50 p-4 rounded-2xl border-2 border-emerald-100 flex items-center gap-3">
-                  <div className="bg-emerald-600 text-white p-2 rounded-lg">
-                    <Accessibility size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-emerald-600">Priority Status</p>
-                    <p className="font-bold text-emerald-900 uppercase">{student.priority_type}</p>
-                  </div>
-                </div>
-              )}
+            <div className="bg-amber-50 border-2 border-amber-100 p-6 rounded-3xl text-center">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Pending</p>
+              <p className="text-3xl font-black text-amber-700">{pendingQuizzes}</p>
+              <p className="text-[10px] font-bold opacity-40 uppercase">Assessments</p>
+            </div>
+            <div className="bg-indigo-50 border-2 border-indigo-100 p-6 rounded-3xl text-center">
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">Avg Score</p>
+              <p className="text-3xl font-black text-indigo-700">{averageScore}</p>
+              <p className="text-[10px] font-bold opacity-40 uppercase">Points</p>
             </div>
           </div>
 
+          {/* Detailed Scores List */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Academic Performance</h4>
-              <span className="text-[10px] font-bold uppercase bg-gray-100 px-2 py-1 rounded">{results.length} Attempts</span>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : results.length === 0 ? (
-              <div className="bg-gray-50 border-2 border-dashed border-gray-200 p-8 rounded-2xl text-center">
-                <p className="text-[10px] font-bold uppercase opacity-30">No quiz attempts recorded for this student</p>
+            <h5 className="text-xs font-black uppercase tracking-widest opacity-40">Detailed Quiz History</h5>
+            {attempts.length === 0 ? (
+              <div className="p-8 border-2 border-dashed border-[#141414]/10 rounded-3xl text-center">
+                <p className="text-[10px] font-bold uppercase opacity-30">No quiz attempts recorded</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {results.map((res, i) => (
-                  <div key={i} className="bg-white border-2 border-[#141414] p-4 rounded-xl flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(20,20,20,0.05)]">
+                {attempts.map((attempt, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 border border-[#141414]/5 rounded-2xl">
                     <div>
-                      <h5 className="font-bold text-sm">{res.title}</h5>
-                      <p className="text-[10px] opacity-50 uppercase tracking-widest">{new Date(res.attempt_date).toLocaleDateString()}</p>
+                      <p className="font-bold text-sm uppercase tracking-tight">Quiz ID: {attempt.quiz_id}</p>
+                      <p className="text-[10px] opacity-40 uppercase font-bold">{new Date(attempt.attempt_date).toLocaleDateString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-lg">{res.score}<span className="text-[10px] opacity-30">/{res.total_questions}</span></p>
-                      <div className="w-24 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                        <div 
-                          className="h-full bg-emerald-500" 
-                          style={{ width: `${(res.score / res.total_questions) * 100}%` }}
-                        />
-                      </div>
+                      <p className="font-black text-lg text-indigo-600">{attempt.score}</p>
+                      <p className="text-[10px] font-bold uppercase opacity-30">Score</p>
                     </div>
                   </div>
                 ))}
@@ -421,10 +441,11 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     registration_number: '',
     date_of_birth: '',
     mobile: '',
-    department: '',
+    department: 'AIML',
     profile_picture: '',
-    priority_type: 'general',
-    current_stage: 1
+    year: 1,
+    section: 'A' as 'A' | 'B',
+    priority_category: 'none' as 'none' | 'children' | 'disability' | 'senior'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -509,35 +530,57 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Mobile Number</label>
               <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Department</label>
-              <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" placeholder="e.g. Computer Science" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Department</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.department}
+                  onChange={e => setFormData({...formData, department: e.target.value})}
+                >
+                  <option value="AIML">AIML</option>
+                  <option value="IT">IT</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Academic Year</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.year}
+                  onChange={e => setFormData({...formData, year: parseInt(e.target.value)})}
+                >
+                  <option value={1}>1st Year</option>
+                  <option value={2}>2nd Year</option>
+                  <option value={3}>3rd Year</option>
+                  <option value={4}>4th Year</option>
+                </select>
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
-              <select 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                value={formData.priority_type}
-                onChange={e => setFormData({...formData, priority_type: e.target.value as any})}
-              >
-                <option value="general">General</option>
-                <option value="children">Children (Under 18)</option>
-                <option value="disability">Person with Disability</option>
-                <option value="senior">Senior Citizen</option>
-                <option value="special_needs">Special Needs</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Academic Stage</label>
-              <select 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                value={formData.current_stage}
-                onChange={e => setFormData({...formData, current_stage: parseInt(e.target.value)})}
-              >
-                <option value={1}>Stage 1 (Beginner)</option>
-                <option value={2}>Stage 2 (Intermediate)</option>
-                <option value={3}>Stage 3 (Advanced)</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Section</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.section}
+                  onChange={e => setFormData({...formData, section: e.target.value as 'A' | 'B'})}
+                >
+                  <option value="A">Section A</option>
+                  <option value="B">Section B</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.priority_category}
+                  onChange={e => setFormData({...formData, priority_category: e.target.value as any})}
+                >
+                  <option value="none">None</option>
+                  <option value="children">Children</option>
+                  <option value="disability">Disability</option>
+                  <option value="senior">Senior</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -580,12 +623,8 @@ function QuizManager({ token }: { token: string }) {
           <div key={quiz.id} className="bg-white border-2 border-[#141414] p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex justify-between items-center group">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
-                  quiz.stage === 1 ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                  quiz.stage === 2 ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                  'bg-red-50 text-red-600 border-red-100'
-                }`}>
-                  Stage {quiz.stage}
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                  Year {quiz.year}
                 </span>
                 <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject}</p>
               </div>
@@ -619,7 +658,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     title: '',
     subject: '',
     time_limit: 10,
-    stage: 1,
+    year: 1,
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
   const [showBulk, setShowBulk] = useState(false);
@@ -640,7 +679,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           title: data.title,
           subject: data.subject,
           time_limit: data.time_limit,
-          stage: data.stage,
+          year: data.year,
           questions: data.questions.map((q: any) => ({
             text: q.question_text,
             a: q.option_a,
@@ -761,11 +800,12 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
               <input type="number" required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.time_limit} onChange={e => setQuizData({...quizData, time_limit: parseInt(e.target.value)})} />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Stage (Difficulty)</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.stage} onChange={e => setQuizData({...quizData, stage: parseInt(e.target.value)})}>
-                <option value={1}>Stage 1: Beginner</option>
-                <option value={2}>Stage 2: Intermediate</option>
-                <option value={3}>Stage 3: Advanced</option>
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Target Year</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.year} onChange={e => setQuizData({...quizData, year: parseInt(e.target.value)})}>
+                <option value={1}>1st Year</option>
+                <option value={2}>2nd Year</option>
+                <option value={3}>3rd Year</option>
+                <option value={4}>4th Year</option>
               </select>
             </div>
           </div>
@@ -913,6 +953,358 @@ function LeaderboardView({ token }: { token: string }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </motion.div>
+  );
+}
+
+function NotificationCenter({ token }: { token: string }) {
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    setStatus(null);
+    try {
+      const res = await fetch('/api/notifications/send-manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message })
+      });
+      if (res.ok) {
+        setStatus({ type: 'success', text: 'Notification sent successfully to all registered students!' });
+        setMessage('');
+      } else {
+        throw new Error('Failed to send notification');
+      }
+    } catch (err) {
+      setStatus({ type: 'error', text: 'Error sending notification. Please check your bot token.' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal max-w-2xl mx-auto"
+    >
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-brutal-sm">
+          <Send size={24} />
+        </div>
+        <div>
+          <h3 className="text-2xl font-black uppercase tracking-tighter">Telegram Alerts</h3>
+          <p className="text-xs font-bold uppercase opacity-40 tracking-widest">Send manual notifications to students</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Message Content</label>
+          <textarea 
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message here... (e.g., Important update regarding tomorrow's quiz!)"
+            className="w-full p-6 bg-gray-50 border-2 border-[#141414] rounded-2xl font-medium min-h-[150px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+          />
+        </div>
+
+        {status && (
+          <div className={`p-4 rounded-xl border-2 flex items-center gap-3 ${status.type === 'success' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
+            <AlertCircle size={18} />
+            <p className="text-xs font-bold uppercase tracking-wide">{status.text}</p>
+          </div>
+        )}
+
+        <button 
+          onClick={handleSend}
+          disabled={sending || !message.trim()}
+          className="w-full bg-[#141414] text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#2a2a2a] transition-all shadow-brutal-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {sending ? (
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <Send size={18} />
+              Send Notification
+            </>
+          )}
+        </button>
+
+        <div className="pt-6 border-t border-[#141414]/5">
+          <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
+            <ShieldCheck className="text-indigo-600 mt-0.5" size={16} />
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-900">Security Note</p>
+              <p className="text-[10px] font-medium text-indigo-700 leading-relaxed">
+                This will send a message to all students who have registered their Telegram Chat ID in their dashboard. 
+                Ensure your <code className="bg-white px-1 rounded">TELEGRAM_BOT_TOKEN</code> is correctly set in the environment.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function SecurityCenter({ token }: { token: string }) {
+  const [cameraStatus, setCameraStatus] = useState<'active' | 'offline'>('active');
+  const [osStatus, setOsStatus] = useState<'secure' | 'warning'>('secure');
+  const [students, setStudents] = useState<User[]>([]);
+  const [activeStage, setActiveStage] = useState(1);
+
+  useEffect(() => {
+    fetch('/api/students', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => res.json()).then(setStudents);
+  }, []);
+
+  const priorityStudents = students.filter(s => s.priority_category && s.priority_category !== 'none');
+
+  const stages = [
+    { id: 1, name: 'Campus Entrance', status: 'secure', icon: <Lock size={16} /> },
+    { id: 2, name: 'Academic Blocks', status: 'secure', icon: <Cpu size={16} /> },
+    { id: 3, name: 'Laboratory Zone', status: 'warning', icon: <Camera size={16} /> },
+    { id: 4, name: 'Examination Halls', status: 'secure', icon: <ShieldCheck size={16} /> }
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8 pb-20"
+    >
+      <div className="bg-[#141414] text-white p-8 rounded-[3rem] shadow-brutal relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="space-y-4 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
+              <ShieldCheck size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest">System Secure</span>
+            </div>
+            <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Safety & Security<br/>Command Center</h2>
+            <p className="text-sm font-medium opacity-60 max-w-md">
+              Advanced monitoring for OS integrity, camera facilities, and stage-wise priority access control.
+            </p>
+          </div>
+          <div className="flex gap-4">
+            <div className="p-6 bg-white/5 border border-white/10 rounded-[2rem] text-center">
+              <Camera className="mx-auto mb-2 text-blue-400" size={32} />
+              <p className="text-[10px] font-black uppercase opacity-40">Camera</p>
+              <p className="text-xl font-black">ACTIVE</p>
+            </div>
+            <div className="p-6 bg-white/5 border border-white/10 rounded-[2rem] text-center">
+              <Cpu className="mx-auto mb-2 text-emerald-400" size={32} />
+              <p className="text-[10px] font-black uppercase opacity-40">OS Sec</p>
+              <p className="text-xl font-black">SAFE</p>
+            </div>
+          </div>
+        </div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 blur-[100px] -mr-32 -mt-32" />
+      </div>
+
+      {/* Stage-wise Security Monitoring */}
+      <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tighter">Stage-Wise Security</h3>
+            <p className="text-[10px] font-bold uppercase opacity-40">Zonal Monitoring System</p>
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl border border-[#141414]/5">
+            {stages.map(stage => (
+              <button
+                key={stage.id}
+                onClick={() => setActiveStage(stage.id)}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeStage === stage.id ? 'bg-[#141414] text-white' : 'text-[#141414]/40 hover:text-[#141414]'}`}
+              >
+                Stage {stage.id}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {stages.map(stage => (
+            <div 
+              key={stage.id}
+              className={`p-6 rounded-3xl border-2 transition-all ${activeStage === stage.id ? 'border-[#141414] bg-white shadow-brutal-sm' : 'border-transparent bg-gray-50 opacity-60'}`}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${stage.status === 'secure' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                  {stage.icon}
+                </div>
+                <div className={`w-2 h-2 rounded-full ${stage.status === 'secure' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+              </div>
+              <h4 className="text-sm font-black uppercase tracking-tight mb-1">{stage.name}</h4>
+              <p className={`text-[10px] font-bold uppercase ${stage.status === 'secure' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {stage.status === 'secure' ? 'Secure & Monitored' : 'Attention Required'}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Priority Assistance Section */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-brutal-sm">
+                <Accessibility size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter">Priority Registry</h3>
+                <p className="text-[10px] font-bold uppercase opacity-40">Special Assistance Monitoring</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {priorityStudents.length === 0 ? (
+                <div className="text-center py-8 opacity-30 font-bold uppercase text-[10px]">No priority students registered</div>
+              ) : (
+                priorityStudents.map(student => (
+                  <div key={student.id} className="p-4 bg-gray-50 border-2 border-[#141414]/5 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-white border border-[#141414]/10 rounded-lg overflow-hidden">
+                        {student.profile_picture ? (
+                          <img src={student.profile_picture} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={14} /></div>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-tight">{student.name}</p>
+                        <p className="text-[8px] font-bold opacity-40 uppercase">{student.registration_number}</p>
+                      </div>
+                    </div>
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                      student.priority_category === 'disability' ? 'bg-purple-50 text-purple-600 border-purple-100' :
+                      student.priority_category === 'children' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                      'bg-orange-50 text-orange-600 border-orange-100'
+                    }`}>
+                      {student.priority_category}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+              <p className="text-[10px] font-medium text-amber-800 leading-relaxed">
+                <strong>Note:</strong> Stage-wise priority access is automatically granted to these students at all campus checkpoints.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
+            <div className="flex items-center gap-4 mb-6">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-brutal-sm ${osStatus === 'secure' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter">OS Security</h3>
+                <p className="text-[10px] font-bold uppercase opacity-40">System Integrity Monitor</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-xl border-2 border-[#141414]/5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Kernel Protection</span>
+                  <span className="text-[10px] font-black uppercase text-emerald-600">Active</span>
+                </div>
+                <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-full" />
+                </div>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-xl border-2 border-[#141414]/5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Firewall Status</span>
+                  <span className="text-[10px] font-black uppercase text-emerald-600">Secure</span>
+                </div>
+                <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-[95%]" />
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setOsStatus(osStatus === 'secure' ? 'warning' : 'secure')}
+              className="w-full mt-6 bg-[#141414] text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#2a2a2a] transition-all shadow-brutal-sm text-xs"
+            >
+              Run Security Audit
+            </button>
+          </div>
+        </div>
+
+        {/* Camera Facilities */}
+        <div className="lg:col-span-2 bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
+          <div className="flex justify-between items-center mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center shadow-brutal-sm">
+                <Camera size={24} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black uppercase tracking-tighter">Camera Facilities</h3>
+                <p className="text-[10px] font-bold uppercase opacity-40">Live Surveillance & Proctoring</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl border-2 border-red-100">
+              <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Live Feed</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map(cam => (
+              <div key={cam} className="relative aspect-video bg-gray-900 rounded-2xl overflow-hidden border-2 border-[#141414] group">
+                <img 
+                  src={`https://picsum.photos/seed/security-cam-${cam}/800/450?grayscale`} 
+                  alt={`Camera ${cam}`}
+                  className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-[8px] font-black uppercase tracking-widest text-white">CAM-0{cam}</span>
+                </div>
+                <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white mb-1">Hallway {cam}</p>
+                    <p className="text-[8px] font-medium text-white/50 uppercase">Zone: {cam % 2 === 0 ? 'Primary' : 'Secondary'}</p>
+                  </div>
+                  <div className="text-[8px] font-mono text-white/50">
+                    {new Date().toLocaleTimeString()}
+                  </div>
+                </div>
+                <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 p-6 bg-gray-50 rounded-3xl border-2 border-[#141414]/5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white border-2 border-[#141414] rounded-xl shadow-brutal-sm">
+                <Users className="text-indigo-600" size={20} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-tighter">AI Proctoring Active</p>
+                <p className="text-[10px] font-medium opacity-50 uppercase">Monitoring 12 active sessions</p>
+              </div>
+            </div>
+            <button className="bg-[#141414] text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#2a2a2a] transition-all shadow-brutal-sm">
+              View All Feeds
+            </button>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

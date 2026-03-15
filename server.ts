@@ -13,7 +13,7 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://dhxkwbjtsldlfctwgn
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeGt3Ymp0c2xkbGZjdHdnbnRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMTk2MTQsImV4cCI6MjA4ODc5NTYxNH0.mz9LC01m_JvnLj_BVxJgi0pwlUIITJcY10Xmxf2ARuo';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const JWT_SECRET = 'super-secret-key-for-mini-project';
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-mini-project';
 
 async function startServer() {
   const app = express();
@@ -92,7 +92,7 @@ async function startServer() {
 
   // Student Management (Admin)
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, priority_type, current_stage } = req.body;
+    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -102,8 +102,8 @@ async function startServer() {
         mobile, 
         department, 
         profile_picture, 
-        priority_type: priority_type || 'general',
-        current_stage: current_stage || 1
+        year: year || 1,
+        section: section || 'A'
       }]);
 
     if (error) return res.status(400).json({ error: error.message });
@@ -140,7 +140,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, stage, questions } = req.body;
+    const { title, subject, time_limit, year, questions } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -149,7 +149,7 @@ async function startServer() {
         title, 
         subject, 
         time_limit, 
-        stage: stage || 1, 
+        year: year || 1, 
         created_by: (req as any).user.id 
       }])
       .select()
@@ -171,17 +171,18 @@ async function startServer() {
     const { error: qError } = await supabase.from('questions').insert(questionsToInsert);
 
     if (qError) return res.status(500).json({ error: qError.message });
+
     res.json({ success: true, quizId: quiz.id });
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, stage, questions } = req.body;
+    const { title, subject, time_limit, year, questions } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
     const { error: quizError } = await supabase
       .from('quizzes')
-      .update({ title, subject, time_limit, stage: stage || 1 })
+      .update({ title, subject, time_limit, year: year || 1 })
       .eq('id', quizId);
 
     if (quizError) return res.status(500).json({ error: quizError.message });

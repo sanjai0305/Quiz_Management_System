@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { Quiz } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility } from 'lucide-react';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 
@@ -23,7 +23,7 @@ export default function StudentDashboard() {
       setLoading(false);
     };
     fetchData();
-  }, [token]);
+  }, [token, user]);
 
   const handleStartQuiz = (quiz: Quiz) => {
     navigate(`/quiz/${quiz.id}`);
@@ -45,9 +45,9 @@ export default function StudentDashboard() {
           <h2 className="text-4xl font-black tracking-tighter">STUDENT PORTAL</h2>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-sm font-medium uppercase tracking-widest opacity-50">Academic Dashboard • Welcome, {user?.name}</p>
-            {user?.priority_type && user.priority_type !== 'general' && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-amber-200">
-                {user.priority_type} Priority
+            {user?.year && (
+              <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
+                {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
               </span>
             )}
           </div>
@@ -82,15 +82,15 @@ export default function StudentDashboard() {
         <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
-              <Accessibility size={20} />
+              <BookOpen size={20} />
             </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Priority Mode</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest">Academic Year</h4>
           </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Category: {user?.priority_type || 'General'}</p>
+          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Year: {user?.year || 'N/A'}</p>
           <div className="flex gap-1">
-            <div className="h-1.5 flex-1 bg-amber-500 rounded-full" />
-            <div className="h-1.5 flex-1 bg-amber-200 rounded-full" />
-            <div className="h-1.5 flex-1 bg-amber-200 rounded-full" />
+            {[1, 2, 3, 4].map(y => (
+              <div key={y} className={`h-1.5 flex-1 rounded-full ${user?.year && user.year >= y ? 'bg-amber-500' : 'bg-amber-100'}`} />
+            ))}
           </div>
         </div>
       </div>
@@ -104,20 +104,20 @@ export default function StudentDashboard() {
             </div>
             
             <div className="space-y-12">
-              {[1, 2, 3].map(stage => {
-                const stageQuizzes = quizzes.filter(q => q.stage === stage);
-                if (stageQuizzes.length === 0) return null;
+              {[1, 2, 3, 4].map(year => {
+                const yearQuizzes = quizzes.filter(q => q.year === year);
+                if (yearQuizzes.length === 0) return null;
                 return (
-                  <div key={stage} className="space-y-6">
+                  <div key={year} className="space-y-6">
                     <div className="flex items-center gap-4">
-                      <div className={`h-px flex-1 ${stage === 1 ? 'bg-blue-200' : stage === 2 ? 'bg-orange-200' : 'bg-red-200'}`} />
-                      <h4 className={`text-[10px] font-black uppercase tracking-[0.3em] ${stage === 1 ? 'text-blue-600' : stage === 2 ? 'text-orange-600' : 'text-red-600'}`}>
-                        Stage {stage}: {stage === 1 ? 'Beginner' : stage === 2 ? 'Intermediate' : 'Advanced'}
+                      <div className="h-px flex-1 bg-indigo-200" />
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600">
+                        {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year Assessments
                       </h4>
-                      <div className={`h-px flex-1 ${stage === 1 ? 'bg-blue-200' : stage === 2 ? 'bg-orange-200' : 'bg-red-200'}`} />
+                      <div className="h-px flex-1 bg-indigo-200" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {stageQuizzes.map(quiz => (
+                      {yearQuizzes.map(quiz => (
                         <motion.div 
                           key={quiz.id} 
                           whileHover={{ y: -5 }}

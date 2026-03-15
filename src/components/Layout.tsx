@@ -26,13 +26,6 @@ export function Layout() {
         </div>
 
         <div className="flex items-center gap-6">
-          {user?.priority_type && user.priority_type !== 'general' && (
-            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium border border-emerald-100">
-              <Accessibility size={14} />
-              <span>Priority Mode: {user.priority_type}</span>
-            </div>
-          )}
-          
           <div className="flex items-center gap-3 border-l border-[#141414]/10 pl-6">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold">{user?.name}</p>
