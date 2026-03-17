@@ -119,7 +119,7 @@ async function startServer() {
 
   // Student Management (Admin)
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
+    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section, is_priority, priority_type } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -131,6 +131,8 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
+        is_priority: !!is_priority,
+        priority_type: priority_type || 'none',
         created_by: (req as any).user.id
       }]);
 
@@ -306,14 +308,29 @@ async function startServer() {
 
   // Attempts & Results
   app.post('/api/attempts', authenticateToken, async (req, res) => {
-    const { quiz_id, score, total_questions } = req.body;
+    const { quiz_id, score, total_questions, is_malpractice } = req.body;
+    const student_id = (req as any).user.id;
+
+    // Check if already attempted
+    const { data: existingAttempt } = await supabase
+      .from('attempts')
+      .select('id')
+      .eq('student_id', student_id)
+      .eq('quiz_id', quiz_id)
+      .single();
+
+    if (existingAttempt) {
+      return res.status(400).json({ error: 'You have already attempted this quiz.' });
+    }
+
     const { error } = await supabase
       .from('attempts')
       .insert([{ 
-        student_id: (req as any).user.id, 
+        student_id, 
         quiz_id, 
         score, 
-        total_questions 
+        total_questions,
+        is_malpractice: !!is_malpractice
       }]);
 
     if (error) return res.status(500).json({ error: error.message });
@@ -363,12 +380,16 @@ async function startServer() {
           section: s.section,
           totalScore: 0,
           totalQuestions: 0,
-          attempts: 0
+          attempts: 0,
+          malpracticeCount: 0
         };
       }
       studentMap[s.id].totalScore += a.score;
       studentMap[s.id].totalQuestions += a.total_questions;
       studentMap[s.id].attempts += 1;
+      if (a.is_malpractice) {
+        studentMap[s.id].malpracticeCount += 1;
+      }
     });
 
     const leaderboard = Object.values(studentMap)
@@ -389,6 +410,7 @@ async function startServer() {
         score,
         total_questions,
         attempt_date,
+        is_malpractice,
         quizzes (title)
       `)
       .eq('student_id', (req as any).user.id)
@@ -401,7 +423,8 @@ async function startServer() {
       title: a.quizzes.title,
       score: a.score,
       total_questions: a.total_questions,
-      attempt_date: a.attempt_date
+      attempt_date: a.attempt_date,
+      is_malpractice: a.is_malpractice
     }));
 
     res.json(formatted);
@@ -430,6 +453,7 @@ async function startServer() {
         score,
         total_questions,
         attempt_date,
+        is_malpractice,
         quizzes (title)
       `)
       .eq('student_id', req.params.id)
@@ -441,7 +465,8 @@ async function startServer() {
       title: a.quizzes.title,
       score: a.score,
       total_questions: a.total_questions,
-      attempt_date: a.attempt_date
+      attempt_date: a.attempt_date,
+      is_malpractice: a.is_malpractice
     }));
 
     res.json(formatted);

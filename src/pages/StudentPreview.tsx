@@ -35,8 +35,11 @@ export default function StudentPreview() {
           fetch(`/api/admin/student/${id}/results`, { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
         
-        setQuizzes(await qRes.json());
-        setResults(await rRes.json());
+        const qData = await qRes.json();
+        const rData = await rRes.json();
+        
+        setQuizzes(Array.isArray(qData) ? qData : []);
+        setResults(Array.isArray(rData) ? rData : []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -82,7 +85,7 @@ export default function StudentPreview() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
@@ -106,6 +109,40 @@ export default function StudentPreview() {
             </div>
             <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {student.department || 'N/A'}</p>
             <p className="text-sm font-black uppercase">{student.department} - Section {student.section}</p>
+          </div>
+          <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+                <Camera size={20} />
+              </div>
+              <h4 className="text-xs font-bold uppercase tracking-widest">Security Status</h4>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold uppercase opacity-40">Camera</span>
+                <span className="text-[10px] font-bold uppercase text-emerald-600">Ready</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold uppercase opacity-40">OS Integrity</span>
+                <span className="text-[10px] font-bold uppercase text-emerald-600">Verified</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
+                <Accessibility size={20} />
+              </div>
+              <h4 className="text-xs font-bold uppercase tracking-widest">Priority Mode</h4>
+            </div>
+            <p className="text-sm font-black uppercase">
+              {student.priority_type === 'child' ? 'Child Mode' : 
+               student.priority_type === 'disability' ? 'Disability Support' : 
+               'Standard Mode'}
+            </p>
+            <p className="text-[10px] font-medium opacity-50 uppercase mt-1">
+              {student.is_priority ? 'Enhanced Time Active' : 'Standard Time'}
+            </p>
           </div>
         </div>
 
@@ -184,7 +221,11 @@ export default function StudentPreview() {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                        {res.is_malpractice ? (
+                          <p className="text-[10px] font-bold text-red-600 uppercase">Malpractice Detected</p>
+                        ) : (
+                          <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                        )}
                       </div>
                     </div>
                   ))

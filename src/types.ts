@@ -11,6 +11,7 @@ export interface User {
   profile_picture?: string;
   year?: number;
   is_priority?: boolean;
+  priority_type?: 'none' | 'child' | 'disability';
 }
 
 export interface Quiz {
@@ -46,4 +47,5 @@ export interface Attempt {
   score: number;
   total_questions: number;
   attempt_date: string;
+  is_malpractice?: boolean;
 }

@@ -426,7 +426,8 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     department: 'AIML',
     profile_picture: '',
     year: 1,
-    section: 'A' as 'A' | 'B'
+    section: 'A' as 'A' | 'B',
+    priority_type: 'none' as 'none' | 'child' | 'disability'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -527,8 +528,8 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                 <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Academic Year</label>
                 <select 
                   className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                  value={formData.year}
-                  onChange={e => setFormData({...formData, year: parseInt(e.target.value)})}
+                  value={formData.year || 1}
+                  onChange={e => setFormData({...formData, year: parseInt(e.target.value) || 1})}
                 >
                   <option value={1}>1st Year</option>
                   <option value={2}>2nd Year</option>
@@ -547,6 +548,18 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                 >
                   <option value="A">Section A</option>
                   <option value="B">Section B</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Mode</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.priority_type}
+                  onChange={e => setFormData({...formData, priority_type: e.target.value as any, is_priority: e.target.value !== 'none'})}
+                >
+                  <option value="none">Standard</option>
+                  <option value="child">Child (Simplified UI)</option>
+                  <option value="disability">Disability (Enhanced Support)</option>
                 </select>
               </div>
             </div>
@@ -828,15 +841,15 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Time (Min)</label>
-              <input type="number" required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.time_limit} onChange={e => setQuizData({...quizData, time_limit: parseInt(e.target.value)})} />
+              <input type="number" required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.time_limit || ''} onChange={e => setQuizData({...quizData, time_limit: parseInt(e.target.value) || 0})} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Q-Timer (Sec)</label>
-              <input type="number" placeholder="0 = No limit" className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.question_timer} onChange={e => setQuizData({...quizData, question_timer: parseInt(e.target.value)})} />
+              <input type="number" placeholder="0 = No limit" className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.question_timer || ''} onChange={e => setQuizData({...quizData, question_timer: parseInt(e.target.value) || 0})} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Target Year</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.year} onChange={e => setQuizData({...quizData, year: parseInt(e.target.value)})}>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.year || 1} onChange={e => setQuizData({...quizData, year: parseInt(e.target.value) || 1})}>
                 <option value={1}>1st Year</option>
                 <option value={2}>2nd Year</option>
                 <option value={3}>3rd Year</option>
@@ -1067,7 +1080,14 @@ function LeaderboardView({ token }: { token: string }) {
                       </span>
                     </td>
                     <td className="p-6">
-                      <p className="font-bold">{row.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold">{row.name}</p>
+                        {row.malpracticeCount > 0 && (
+                          <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-red-200 animate-pulse">
+                            Malpractice: {row.malpracticeCount}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] font-mono opacity-50">{row.registration_number}</p>
                     </td>
                     <td className="p-6">

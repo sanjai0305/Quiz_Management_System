@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
-import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Accessibility, Volume2, ShieldCheck, Camera, Lock, Loader2 } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function QuizPage() {
@@ -17,8 +17,8 @@ export default function QuizPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
-  const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
   const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState<string[]>([]);
 
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
@@ -28,7 +28,7 @@ export default function QuizPage() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const results = await rRes.json();
-        const attempted = results.some((r: any) => r.quiz_id.toString() === id?.toString());
+        const attempted = Array.isArray(results) && results.some((r: any) => r.quiz_id.toString() === id?.toString());
         
         if (attempted) {
           alert('You have already attempted this quiz.');
@@ -84,9 +84,8 @@ export default function QuizPage() {
 
         setQuiz(data);
         
-        // Apply priority mode time extension
+        // Base time
         let baseTime = data.time_limit * 60;
-        if (user?.is_priority) baseTime *= 1.5;
         setTimeLeft(baseTime);
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
@@ -114,11 +113,41 @@ export default function QuizPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quiz, showResult]);
 
+  // Proctoring: Tab Visibility & Focus Check
   useEffect(() => {
-    if (user?.is_priority) {
-      setPriorityMode('disability');
-    }
-  }, [user]);
+    const handleViolation = () => {
+      if (!showResult && !isSubmitting) {
+        handleSubmit(true);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        handleViolation();
+      }
+    };
+
+    const handleBlur = () => {
+      handleViolation();
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!showResult && !isSubmitting) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [showResult, isSubmitting, quiz]);
 
   // Main Quiz Timer
   useEffect(() => {
@@ -159,8 +188,12 @@ export default function QuizPage() {
     }
   }, [currentIdx, quiz?.question_timer]);
 
-  const handleSubmit = async () => {
-    if (!quiz || !quiz.questions) return;
+  const handleSubmit = async (isMalpractice: any = false) => {
+    if (!quiz || !quiz.questions || isSubmitting) return;
+    
+    // Ensure isMalpractice is a boolean (prevents issues if called directly from onClick)
+    const malpracticeFlag = typeof isMalpractice === 'boolean' ? isMalpractice : false;
+    
     setIsSubmitting(true);
 
     let correctCount = 0;
@@ -177,14 +210,18 @@ export default function QuizPage() {
         },
         body: JSON.stringify({
           quiz_id: quiz.id,
-          score: correctCount,
-          total_questions: quiz.questions.length
+          score: malpracticeFlag ? 0 : correctCount,
+          total_questions: quiz.questions.length,
+          is_malpractice: malpracticeFlag
         })
       });
-      setScore(correctCount);
+      setScore(malpracticeFlag ? 0 : correctCount);
       setShowResult(true);
+      if (malpracticeFlag) {
+        setAlerts(prev => [...prev, "CRITICAL: Assessment terminated due to malpractice (tab switching/blur detected)."]);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to submit quiz:', err);
     } finally {
       setIsSubmitting(false);
     }
@@ -248,12 +285,9 @@ export default function QuizPage() {
   const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
-  const fontSizeClass = priorityMode === 'child' ? 'text-2xl' : priorityMode === 'disability' ? 'text-3xl' : 'text-xl';
-  const spacingClass = priorityMode === 'standard' ? 'gap-4' : 'gap-8';
-
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-      <div className="lg:col-span-3 space-y-8">
+    <div className="max-w-6xl mx-auto">
+      <div className="space-y-8">
         <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
         <div>
           <h2 className="text-xl font-bold uppercase tracking-tight">{quiz.title}</h2>
@@ -318,7 +352,7 @@ export default function QuizPage() {
             className="bg-white border-2 border-[#141414] p-8 md:p-12 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] space-y-10"
           >
             <div className="flex justify-between items-start gap-4">
-              <h3 className={`font-bold leading-tight ${fontSizeClass}`}>
+              <h3 className="font-bold leading-tight text-xl">
                 {currentIdx + 1}. {currentQuestion.question_text}
               </h3>
             </div>
@@ -371,7 +405,7 @@ export default function QuizPage() {
 
         {currentIdx === (quiz.questions?.length || 0) - 1 ? (
           <button 
-            onClick={handleSubmit}
+            onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
             className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,0.3)]"
           >
@@ -387,27 +421,20 @@ export default function QuizPage() {
         )}
       </footer>
 
-      </div>
-
-      <aside className="space-y-6">
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-4">System Security</h4>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] font-bold uppercase opacity-40">OS Integrity</span>
-              <span className="text-[9px] font-bold uppercase text-emerald-600">Verified</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] font-bold uppercase opacity-40">Network</span>
-              <span className="text-[9px] font-bold uppercase text-emerald-600">Encrypted</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] font-bold uppercase opacity-40">Browser Lock</span>
-              <span className="text-[9px] font-bold uppercase text-emerald-600">Active</span>
-            </div>
+      {alerts.length > 0 && (
+        <div className="mt-8 bg-red-50 border-2 border-red-200 p-6 rounded-3xl space-y-3">
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertCircle size={20} />
+            <span className="text-xs font-black uppercase tracking-widest">Security Alerts</span>
+          </div>
+          <div className="space-y-2">
+            {alerts.slice(-3).map((alert, i) => (
+              <p key={i} className="text-sm text-red-700 font-bold leading-tight">• {alert}</p>
+            ))}
           </div>
         </div>
-      </aside>
+      )}
+      </div>
     </div>
   );
 }

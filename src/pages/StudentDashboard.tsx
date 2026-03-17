@@ -21,9 +21,13 @@ export default function StudentDashboard() {
         fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
-      setQuizzes(await qRes.json());
-      setResults(await rRes.json());
-      setLeaderboard(await lRes.json());
+      const qData = await qRes.json();
+      const rData = await rRes.json();
+      const lData = await lRes.json();
+      
+      setQuizzes(Array.isArray(qData) ? qData : []);
+      setResults(Array.isArray(rData) ? rData : []);
+      setLeaderboard(Array.isArray(lData) ? lData : []);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -36,7 +40,7 @@ export default function StudentDashboard() {
   }, [token]);
 
   const isAttempted = (quizId: number) => {
-    return results.some(r => r.quiz_id === quizId);
+    return Array.isArray(results) && results.some(r => r.quiz_id === quizId);
   };
 
   const handleStartQuiz = (quiz: Quiz) => {
@@ -242,7 +246,11 @@ export default function StudentDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                      {res.is_malpractice ? (
+                        <p className="text-[10px] font-bold text-red-600 uppercase">Malpractice</p>
+                      ) : (
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                      )}
                     </div>
                   </div>
                 ))
