@@ -24,10 +24,12 @@ const liveSessions = new Map<string, {
   excluded: Set<string>  // Absent/Excluded student IDs
 }>();
 
+let io: Server;
+
 async function startServer() {
   const app = express();
   const httpServer = createServer(app);
-  const io = new Server(httpServer, {
+  io = new Server(httpServer, {
     cors: { origin: "*" }
   });
 
@@ -130,6 +132,11 @@ async function startServer() {
       } catch (err) {
         console.error('Error saving security violation:', err);
       }
+    });
+
+    socket.on('get_active_sessions', () => {
+      const activeIds = Array.from(liveSessions.keys());
+      socket.emit('active_sessions_list', { quizIds: activeIds });
     });
 
     socket.on('disconnect', () => {
@@ -329,6 +336,9 @@ async function startServer() {
 
     if (qError) return res.status(500).json({ error: qError.message });
 
+    // Notify all students to refresh their quiz list
+    io.emit('quiz_created');
+
     res.json({ success: true, quizId: quiz.id });
   });
 
@@ -365,12 +375,37 @@ async function startServer() {
   });
 
   app.get('/api/quizzes', authenticateToken, async (req, res) => {
-    const { data: quizzes, error } = await supabase
-      .from('quizzes')
-      .select('*')
-      .eq('created_by', (req as any).user.id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(quizzes);
+    const user = (req as any).user;
+    
+    if (user.role === 'admin') {
+      const { data: quizzes, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('created_by', user.id);
+      if (error) return res.status(500).json({ error: error.message });
+      return res.json(quizzes);
+    } else {
+      // For students, get their profile first to filter quizzes
+      const { data: student, error: studentError } = await supabase
+        .from('students')
+        .select('department, year, section')
+        .eq('id', user.id)
+        .single();
+      
+      if (studentError || !student) {
+        return res.status(404).json({ error: 'Student profile not found' });
+      }
+
+      const { data: quizzes, error: quizError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('department', student.department)
+        .eq('year', student.year)
+        .or(`section.eq.${student.section},section.eq.Both`);
+
+      if (quizError) return res.status(500).json({ error: quizError.message });
+      return res.json(quizzes);
+    }
   });
 
   app.delete('/api/quizzes/:id', authenticateToken, async (req, res) => {

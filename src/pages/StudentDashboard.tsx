@@ -10,6 +10,7 @@ export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [liveQuizId, setLiveQuizId] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const { token, user } = useAuth();
@@ -18,6 +19,21 @@ export default function StudentDashboard() {
   useEffect(() => {
     const s = io();
     setSocket(s);
+
+    s.on('connect', () => {
+      s.emit('get_active_sessions');
+    });
+
+    s.on('active_sessions_list', (data) => {
+      // Check if any of these are in the student's available quizzes
+      setQuizzes(prevQuizzes => {
+        if (prevQuizzes.length > 0) {
+          const eligible = prevQuizzes.find(q => data.quizIds.includes(q.id.toString()));
+          if (eligible) setLiveQuizId(eligible.id.toString());
+        }
+        return prevQuizzes;
+      });
+    });
 
     s.on('session_available', (data) => {
       // Only show if the quiz is in the student's available quizzes
@@ -34,21 +50,32 @@ export default function StudentDashboard() {
       setLiveQuizId(prevId => prevId === data.quizId ? null : prevId);
     });
 
+    s.on('quiz_created', () => {
+      setRefreshTrigger(prev => prev + 1);
+    });
+
     return () => { s.disconnect(); };
   }, []);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       const [qRes, rRes] = await Promise.all([
         fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
-      setQuizzes(await qRes.json());
+      const qs = await qRes.json();
+      setQuizzes(qs);
       setResults(await rRes.json());
       setLoading(false);
+
+      // Re-check active sessions if socket is connected
+      if (socket) {
+        socket.emit('get_active_sessions');
+      }
     };
     fetchData();
-  }, [token, user]);
+  }, [token, user, socket, refreshTrigger]);
 
   const handleStartQuiz = (quiz: Quiz) => {
     navigate(`/quiz/${quiz.id}`);
