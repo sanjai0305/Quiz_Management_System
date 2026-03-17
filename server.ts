@@ -72,6 +72,33 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/reset-password', async (req, res) => {
+    const { email, newPassword } = req.body;
+    
+    // Check if admin exists
+    const { data: admin, error: findError } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (findError || !admin) {
+      return res.status(404).json({ error: 'Admin with this email not found' });
+    }
+
+    // Update password
+    const { error: updateError } = await supabase
+      .from('admins')
+      .update({ password: newPassword })
+      .eq('email', email);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    res.json({ success: true, message: 'Password reset successful' });
+  });
+
   // Student Auth
   app.post('/api/student/login', async (req, res) => {
     const { registration_number, date_of_birth } = req.body;

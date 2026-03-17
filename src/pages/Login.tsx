@@ -7,10 +7,12 @@ import { motion } from 'motion/react';
 export default function Login() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
+    newPassword: '',
     registration_number: '',
     date_of_birth: ''
   });
@@ -25,6 +27,31 @@ export default function Login() {
     setError('');
     setSuccess('');
     setLoading(true);
+
+    if (isAdmin && isForgotPassword) {
+      try {
+        const res = await fetch('/api/admin/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: formData.email, 
+            newPassword: formData.newPassword 
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSuccess('Password reset successful! Please login.');
+          setIsForgotPassword(false);
+        } else {
+          setError(data.error || 'Reset failed');
+        }
+      } catch (err) {
+        setError('Connection error');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (isAdmin && isRegistering) {
       try {
@@ -91,21 +118,21 @@ export default function Login() {
         </div>
 
         <h2 className="text-2xl font-black text-center mb-2 tracking-tighter uppercase leading-tight">
-          {isAdmin && isRegistering ? 'Register' : 'MAHENDRA INSTITUTE OF TECHNOLOGY'}
+          {isAdmin && isRegistering ? 'Register' : (isAdmin && isForgotPassword ? 'Reset Password' : 'MAHENDRA INSTITUTE OF TECHNOLOGY')}
         </h2>
         <p className="text-center text-[10px] text-[#141414]/50 mb-8 font-bold uppercase tracking-[0.2em]">
-          {isAdmin && isRegistering ? 'Create Admin Account' : 'Secure Academic Portal'}
+          {isAdmin && isRegistering ? 'Create Admin Account' : (isAdmin && isForgotPassword ? 'Recover Admin Access' : 'Secure Academic Portal')}
         </p>
 
         <div className="flex border-2 border-[#141414] mb-8 overflow-hidden rounded-xl">
           <button
-            onClick={() => { setIsAdmin(false); setIsRegistering(false); }}
+            onClick={() => { setIsAdmin(false); setIsRegistering(false); setIsForgotPassword(false); }}
             className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${!isAdmin ? 'bg-[#141414] text-white' : 'bg-white text-[#141414] hover:bg-gray-50'}`}
           >
             Student
           </button>
           <button
-            onClick={() => setIsAdmin(true)}
+            onClick={() => { setIsAdmin(true); setIsForgotPassword(false); }}
             className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${isAdmin ? 'bg-[#141414] text-white' : 'bg-white text-[#141414] hover:bg-gray-50'}`}
           >
             Admin
@@ -145,20 +172,37 @@ export default function Login() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Password</label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" size={18} />
-                  <input
-                    type="password"
-                    required
-                    className="w-full pl-10 pr-4 py-3 border-2 border-[#141414] rounded-xl focus:ring-0 focus:border-indigo-500 transition-all outline-none font-medium"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                  />
+              {!isForgotPassword ? (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Password</label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" size={18} />
+                    <input
+                      type="password"
+                      required
+                      className="w-full pl-10 pr-4 py-3 border-2 border-[#141414] rounded-xl focus:ring-0 focus:border-indigo-500 transition-all outline-none font-medium"
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={e => setFormData({ ...formData, password: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">New Password</label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" size={18} />
+                    <input
+                      type="password"
+                      required
+                      className="w-full pl-10 pr-4 py-3 border-2 border-[#141414] rounded-xl focus:ring-0 focus:border-indigo-500 transition-all outline-none font-medium"
+                      placeholder="Enter new password"
+                      value={formData.newPassword}
+                      onChange={e => setFormData({ ...formData, newPassword: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -211,19 +255,30 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#2a2a2a] transition-all active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Processing...' : (isAdmin && isRegistering ? 'Create Account' : 'Authorize Access')}
+            {loading ? 'Processing...' : (isAdmin && isRegistering ? 'Create Account' : (isAdmin && isForgotPassword ? 'Update Password' : 'Authorize Access'))}
             {!loading && <ArrowRight size={18} />}
           </button>
         </form>
 
         {isAdmin && (
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccess(''); }}
-              className="text-xs font-bold uppercase tracking-widest text-[#141414]/50 hover:text-[#141414] underline underline-offset-4"
-            >
-              {isRegistering ? 'Already have an account? Login' : 'Need an admin account? Register'}
-            </button>
+          <div className="mt-6 flex flex-col gap-4 text-center">
+            {!isForgotPassword && (
+              <button
+                onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccess(''); }}
+                className="text-xs font-bold uppercase tracking-widest text-[#141414]/50 hover:text-[#141414] underline underline-offset-4"
+              >
+                {isRegistering ? 'Already have an account? Login' : 'Need an admin account? Register'}
+              </button>
+            )}
+            
+            {!isRegistering && (
+              <button
+                onClick={() => { setIsForgotPassword(!isForgotPassword); setError(''); setSuccess(''); }}
+                className="text-xs font-bold uppercase tracking-widest text-[#141414]/50 hover:text-[#141414] underline underline-offset-4"
+              >
+                {isForgotPassword ? 'Back to Login' : 'Forgot Password?'}
+              </button>
+            )}
           </div>
         )}
 
