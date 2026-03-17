@@ -1,6 +1,4 @@
 import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -17,153 +15,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-mini-project';
 
-// --- Live Quiz State ---
-const liveSessions = new Map<string, { 
-  isLive: boolean, 
-  students: Set<string>, // Connected student IDs
-  excluded: Set<string>  // Absent/Excluded student IDs
-}>();
-
-let io: Server;
-
 async function startServer() {
   const app = express();
-  const httpServer = createServer(app);
-  io = new Server(httpServer, {
-    cors: { origin: "*" }
-  });
-
   app.use(express.json({ limit: '10mb' }));
-
-  // --- Socket.io Logic ---
-  io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    socket.on('join_quiz', ({ quizId, userId, role }) => {
-      const qId = String(quizId);
-      socket.join(`quiz_${qId}`);
-      
-      if (!liveSessions.has(qId)) {
-        liveSessions.set(qId, { isLive: false, students: new Set(), excluded: new Set() });
-      }
-      
-      const session = liveSessions.get(qId)!;
-      if (role === 'student' && userId) {
-        session.students.add(String(userId));
-      }
-      
-      // Notify everyone in the room about student presence
-      io.to(`quiz_${qId}`).emit('presence_update', {
-        onlineStudents: Array.from(session.students),
-        excludedStudents: Array.from(session.excluded),
-        isLive: session.isLive
-      });
-
-      // If admin joins, broadcast to all students that a session is available
-      if (role === 'admin') {
-        io.emit('session_available', { quizId: qId });
-      }
-    });
-
-    socket.on('start_quiz', ({ quizId }) => {
-      const qId = String(quizId);
-      console.log(`Starting quiz: ${qId}`);
-      const session = liveSessions.get(qId);
-      if (session) {
-        session.isLive = true;
-        io.to(`quiz_${qId}`).emit('quiz_started', { quizId: qId });
-        // Update everyone about the new state
-        io.to(`quiz_${qId}`).emit('presence_update', {
-          onlineStudents: Array.from(session.students),
-          excludedStudents: Array.from(session.excluded),
-          isLive: true
-        });
-      }
-    });
-
-    socket.on('stop_quiz', ({ quizId }) => {
-      const qId = String(quizId);
-      console.log(`Stopping quiz: ${qId}`);
-      const session = liveSessions.get(qId);
-      if (session) {
-        session.isLive = false;
-        io.to(`quiz_${qId}`).emit('quiz_stopped', { quizId: qId });
-        // Update everyone about the new state
-        io.to(`quiz_${qId}`).emit('presence_update', {
-          onlineStudents: Array.from(session.students),
-          excludedStudents: Array.from(session.excluded),
-          isLive: false
-        });
-      }
-    });
-
-    socket.on('toggle_absent', ({ quizId, studentId, isAbsent }) => {
-      const qId = String(quizId);
-      const session = liveSessions.get(qId);
-      if (session) {
-        const sId = String(studentId);
-        if (isAbsent) session.excluded.add(sId);
-        else session.excluded.delete(sId);
-        
-        io.to(`quiz_${qId}`).emit('presence_update', {
-          onlineStudents: Array.from(session.students),
-          excludedStudents: Array.from(session.excluded),
-          isLive: session.isLive
-        });
-      }
-    });
-
-    socket.on('toggle_manual_presence', ({ quizId, studentId, isPresent }) => {
-      const qId = String(quizId);
-      const session = liveSessions.get(qId);
-      if (session) {
-        const sId = String(studentId);
-        if (isPresent) session.students.add(sId);
-        else session.students.delete(sId);
-        
-        io.to(`quiz_${qId}`).emit('presence_update', {
-          onlineStudents: Array.from(session.students),
-          excludedStudents: Array.from(session.excluded),
-          isLive: session.isLive
-        });
-      }
-    });
-
-    socket.on('security_violation', async ({ quizId, userId, type }) => {
-      const qId = String(quizId);
-      console.log(`Security violation: Quiz ${qId}, User ${userId}, Type ${type}`);
-      
-      // Broadcast to admin in the room
-      io.to(`quiz_${qId}`).emit('security_alert', { userId, type });
-
-      // Save to database
-      try {
-        await supabase.from('security_violations').insert([{
-          quiz_id: parseInt(qId),
-          student_id: String(userId),
-          violation_type: type
-        }]);
-      } catch (err) {
-        console.error('Error saving security violation:', err);
-      }
-    });
-
-    socket.on('get_active_sessions', () => {
-      const activeIds = Array.from(liveSessions.keys());
-      socket.emit('active_sessions_list', { quizIds: activeIds });
-    });
-
-    socket.on('disconnect', () => {
-      // If an admin disconnects, notify students that the session is closed
-      // This is a bit complex because we need to know if the socket was an admin for a specific quiz
-      // For now, let's add an explicit 'close_session' event
-    });
-
-    socket.on('close_session', ({ quizId }) => {
-      const qId = String(quizId);
-      io.emit('session_closed', { quizId: qId });
-    });
-  });
 
   // --- Auth Middleware ---
   const authenticateToken = (req: any, res: any, next: any) => {
@@ -350,9 +204,6 @@ async function startServer() {
 
     if (qError) return res.status(500).json({ error: qError.message });
 
-    // Notify all students to refresh their quiz list
-    io.emit('quiz_created');
-
     res.json({ success: true, quizId: quiz.id });
   });
 
@@ -502,6 +353,7 @@ async function startServer() {
     const { data: results, error } = await supabase
       .from('attempts')
       .select(`
+        quiz_id,
         score,
         total_questions,
         attempt_date,
@@ -513,6 +365,7 @@ async function startServer() {
     if (error) return res.status(500).json({ error: error.message });
 
     const formatted = results.map((a: any) => ({
+      quiz_id: a.quiz_id,
       title: a.quizzes.title,
       score: a.score,
       total_questions: a.total_questions,
@@ -607,7 +460,7 @@ async function startServer() {
   }
 
   const PORT = process.env.PORT || 3000;
-  httpServer.listen(Number(PORT), '0.0.0.0', () => {
+  app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server is live and listening on 0.0.0.0:${PORT}`);
   });
 }

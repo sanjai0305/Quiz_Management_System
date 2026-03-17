@@ -1,122 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
-import { Quiz } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Quiz, Attempt } from '../types';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { io, Socket } from 'socket.io-client';
+import { motion } from 'motion/react';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [liveQuizId, setLiveQuizId] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const s = io();
-    setSocket(s);
-
-    s.on('connect', () => {
-      s.emit('get_active_sessions');
-    });
-
-    s.on('active_sessions_list', (data) => {
-      // Check if any of these are in the student's available quizzes
-      setQuizzes(prevQuizzes => {
-        if (prevQuizzes.length > 0) {
-          const eligible = prevQuizzes.find(q => data.quizIds.includes(q.id.toString()));
-          if (eligible) setLiveQuizId(eligible.id.toString());
-        }
-        return prevQuizzes;
-      });
-    });
-
-    s.on('session_available', (data) => {
-      // Only show if the quiz is in the student's available quizzes
-      setQuizzes(prevQuizzes => {
-        const isEligible = prevQuizzes.some(q => q.id.toString() === data.quizId.toString());
-        if (isEligible) {
-          setLiveQuizId(data.quizId);
-        }
-        return prevQuizzes;
-      });
-    });
-
-    s.on('session_closed', (data) => {
-      setLiveQuizId(prevId => prevId === data.quizId ? null : prevId);
-    });
-
-    s.on('quiz_created', () => {
-      setRefreshTrigger(prev => prev + 1);
-    });
-
-    return () => { s.disconnect(); };
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
       const [qRes, rRes] = await Promise.all([
         fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
-      const qs = await qRes.json();
-      setQuizzes(qs);
+      setQuizzes(await qRes.json());
       setResults(await rRes.json());
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+    } finally {
       setLoading(false);
+    }
+  };
 
-      // Re-check active sessions if socket is connected
-      if (socket) {
-        socket.emit('get_active_sessions');
-      }
-    };
+  useEffect(() => {
     fetchData();
-  }, [token, user, socket, refreshTrigger]);
+  }, [token]);
+
+  const isAttempted = (quizId: number) => {
+    return results.some(r => r.quiz_id === quizId);
+  };
 
   const handleStartQuiz = (quiz: Quiz) => {
+    if (isAttempted(quiz.id)) return;
     navigate(`/quiz/${quiz.id}`);
   };
 
   return (
     <div className="space-y-12">
-      <AnimatePresence>
-        {liveQuizId && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-indigo-600 text-white p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(79,70,229,0.3)] border-2 border-[#141414] flex flex-col md:flex-row items-center justify-between gap-6"
-          >
-            <div className="flex items-center gap-4">
-              <div className="bg-white/20 p-4 rounded-2xl animate-pulse">
-                <AlertCircle size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black tracking-tight uppercase">Live Assessment Available</h3>
-                <p className="text-xs font-medium opacity-80 uppercase tracking-widest">An administrator has initiated a quiz session. Please join the lobby.</p>
-              </div>
-            </div>
-            <div className="flex gap-3 w-full md:w-auto">
-              <button 
-                onClick={() => setLiveQuizId(null)}
-                className="flex-1 md:flex-none px-6 py-3 border-2 border-white/30 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
-              >
-                Dismiss
-              </button>
-              <button 
-                onClick={() => navigate(`/quiz/${liveQuizId}`)}
-                className="flex-1 md:flex-none px-8 py-3 bg-white text-indigo-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-100 transition-all shadow-brutal-sm"
-              >
-                Accept & Join Lobby
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <header className="flex items-center gap-6">
         <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
@@ -218,9 +144,18 @@ export default function StudentDashboard() {
                           </div>
                           <button 
                             onClick={() => handleStartQuiz(quiz)}
-                            className="w-full bg-[#141414] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#2a2a2a] transition-all group"
+                            disabled={isAttempted(quiz.id)}
+                            className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
+                              isAttempted(quiz.id) 
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-dashed border-gray-200' 
+                                : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
+                            }`}
                           >
-                            Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            {isAttempted(quiz.id) ? (
+                              <>Attempted <ShieldCheck size={16} /></>
+                            ) : (
+                              <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+                            )}
                           </button>
                         </motion.div>
                       ))}

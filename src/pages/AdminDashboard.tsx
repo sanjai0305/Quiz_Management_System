@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock, Send, Cpu, Play, Square, UserCheck, UserX } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock, Send, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { io, Socket } from 'socket.io-client';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications'>('students');
@@ -565,164 +564,12 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
 }
 
 // --- Live Quiz Control Modal ---
-function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, students: User[], onClose: () => void, token: string }) {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [onlineStudents, setOnlineStudents] = useState<string[]>([]);
-  const [excludedStudents, setExcludedStudents] = useState<string[]>([]);
-  const [isLive, setIsLive] = useState(false);
-  const [securityLogs, setSecurityLogs] = useState<{userId: string, type: string, time: string}[]>([]);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    const s = io();
-    setSocket(s);
-
-    s.emit('join_quiz', { quizId: quiz.id.toString(), userId: user?.name, role: 'admin' });
-
-    s.on('presence_update', (data) => {
-      setOnlineStudents(data.onlineStudents);
-      setExcludedStudents(data.excludedStudents);
-      setIsLive(data.isLive);
-    });
-
-    s.on('security_alert', (data) => {
-      setSecurityLogs(prev => [{ ...data, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 10));
-    });
-
-    s.on('manual_presence_update', (data) => {
-      setOnlineStudents(data.onlineStudents);
-    });
-
-    return () => { s.disconnect(); };
-  }, [quiz.id]);
-
-  const toggleStart = () => {
-    if (isLive) {
-      socket?.emit('stop_quiz', { quizId: quiz.id.toString() });
-    } else {
-      socket?.emit('start_quiz', { quizId: quiz.id.toString() });
-    }
-  };
-
-  const toggleAbsent = (studentId: string, currentStatus: boolean) => {
-    socket?.emit('toggle_absent', { 
-      quizId: quiz.id.toString(), 
-      studentId, 
-      isAbsent: !currentStatus 
-    });
-  };
-
-  const toggleManualPresence = (studentId: string, isCurrentlyOnline: boolean) => {
-    socket?.emit('toggle_manual_presence', {
-      quizId: quiz.id.toString(),
-      studentId,
-      isPresent: !isCurrentlyOnline
-    });
-  };
-
-  const handleClose = () => {
-    socket?.emit('close_session', { quizId: quiz.id.toString() });
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-8 border-b border-[#141414]/10 flex justify-between items-center bg-indigo-50">
-          <div>
-            <h3 className="text-xl font-black uppercase tracking-tight">Live Session Control</h3>
-            <p className="text-[10px] font-bold uppercase opacity-40">{quiz.title}</p>
-          </div>
-          <button onClick={handleClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
-        </div>
-
-        <div className="p-8 overflow-y-auto space-y-8">
-          <div className="flex flex-col sm:flex-row gap-6 items-center justify-between p-6 bg-gray-50 border-2 border-[#141414] rounded-3xl">
-            <div className="flex items-center gap-4">
-              <div className={`w-4 h-4 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest">{isLive ? 'Session Active' : 'Session Ready'}</p>
-                <p className="text-[10px] opacity-50 font-bold uppercase">{onlineStudents.length} Students Connected</p>
-              </div>
-            </div>
-            <button 
-              onClick={toggleStart}
-              className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 transition-all ${isLive ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
-            >
-              {isLive ? <><Square size={20} /> Stop Quiz</> : <><Play size={20} /> Start Quiz</>}
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Student Attendance & Proctoring</h4>
-              <span className="text-[10px] font-bold uppercase bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg">
-                {onlineStudents.length}/{students.length} Present
-              </span>
-            </div>
-            
-            {securityLogs.length > 0 && (
-              <div className="p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl space-y-2">
-                <p className="text-[10px] font-black uppercase text-rose-600 flex items-center gap-2">
-                  <AlertCircle size={12} /> Security Violations Detected
-                </p>
-                <div className="space-y-1">
-                  {securityLogs.map((log, i) => (
-                    <p key={i} className="text-[9px] font-bold text-rose-500 uppercase">
-                      [{log.time}] Student {log.userId}: {log.type.replace('_', ' ')}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {students.map(student => {
-                const isOnline = onlineStudents.includes(student.registration_number);
-                const isExcluded = excludedStudents.includes(student.registration_number);
-                
-                return (
-                  <div key={student.id} className={`flex items-center justify-between p-4 border-2 rounded-2xl transition-all ${isExcluded ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-white border-[#141414]/10'}`}>
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => toggleManualPresence(student.registration_number!, isOnline)}
-                        className={`w-3 h-3 rounded-full transition-all ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-300 hover:bg-emerald-200'}`}
-                        title={isOnline ? 'Online (Click to force offline)' : 'Offline (Click to force online)'}
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold uppercase tracking-tight">{student.name}</p>
-                          {student.is_priority && (
-                            <span className="text-[8px] bg-amber-100 text-amber-600 px-1 rounded font-black uppercase">PRIORITY</span>
-                          )}
-                        </div>
-                        <p className="text-[8px] font-mono font-bold opacity-40">{student.registration_number}</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => toggleAbsent(student.registration_number, isExcluded)}
-                      className={`p-2 rounded-xl transition-all ${isExcluded ? 'text-emerald-600 hover:bg-emerald-50' : 'text-red-600 hover:bg-red-50'}`}
-                      title={isExcluded ? 'Mark Present' : 'Mark Absent/Hold'}
-                    >
-                      {isExcluded ? <UserCheck size={16} /> : <UserX size={16} />}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
 function QuizManager({ token }: { token: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [students, setStudents] = useState<User[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
-  const [liveQuizId, setLiveQuizId] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
     const res = await fetch('/api/quizzes', {
@@ -786,13 +633,6 @@ function QuizManager({ token }: { token: string }) {
             </div>
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => setLiveQuizId(quiz.id)}
-                className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all"
-                title="Live Control"
-              >
-                <Play size={18} />
-              </button>
-              <button 
                 onClick={() => setEditingQuizId(quiz.id)}
                 className="p-3 bg-gray-50 text-[#141414] rounded-xl border border-[#141414]/10 hover:bg-[#141414] hover:text-white transition-all opacity-0 group-hover:opacity-100"
                 title="Edit Quiz"
@@ -813,19 +653,6 @@ function QuizManager({ token }: { token: string }) {
 
       {showAdd && <QuizModal onClose={() => setShowAdd(false)} onAdded={fetchQuizzes} token={token} />}
       {editingQuizId && <QuizModal quizId={editingQuizId} onClose={() => setEditingQuizId(null)} onAdded={fetchQuizzes} token={token} />}
-      {liveQuizId && (
-        <LiveQuizControl 
-          quiz={quizzes.find(q => q.id === liveQuizId)!} 
-          students={students.filter(s => {
-            const q = quizzes.find(quiz => quiz.id === liveQuizId)!;
-            return s.year === q.year && 
-                   s.department === q.department && 
-                   (q.section === 'Both' || s.section === q.section);
-          })}
-          onClose={() => setLiveQuizId(null)} 
-          token={token} 
-        />
-      )}
       
       <AnimatePresence>
         {quizToDelete && (

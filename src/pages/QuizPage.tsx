@@ -4,7 +4,6 @@ import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Accessibility, Volume2, ShieldCheck, Camera, Lock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { io, Socket } from 'socket.io-client';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -18,42 +17,91 @@ export default function QuizPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
-  const [isLive, setIsLive] = useState(false);
-  const [isExcluded, setIsExcluded] = useState(false);
-  const [lobbyStudents, setLobbyStudents] = useState<string[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
   const [securityViolations, setSecurityViolations] = useState(0);
   const [showSecurityWarning, setShowSecurityWarning] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Socket Connection
   useEffect(() => {
-    const s = io();
-    setSocket(s);
+    const checkAttemptAndFetchQuiz = async () => {
+      try {
+        // Check if already attempted
+        const rRes = await fetch('/api/student/results', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const results = await rRes.json();
+        const attempted = results.some((r: any) => r.quiz_id.toString() === id?.toString());
+        
+        if (attempted) {
+          alert('You have already attempted this quiz.');
+          navigate('/dashboard');
+          return;
+        }
 
-    s.on('connect', () => {
-      setIsConnected(true);
-      s.emit('join_quiz', { 
-        quizId: id, 
-        userId: user?.registration_number, 
-        role: 'student' 
-      });
-    });
+        // Fetch quiz
+        const qRes = await fetch(`/api/quizzes/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!qRes.ok) throw new Error('Quiz not found');
+        const data = await qRes.json();
 
-    s.on('disconnect', () => setIsConnected(false));
+        // Shuffle questions and options for each student session
+        if (data.questions && Array.isArray(data.questions)) {
+          // 1. Shuffle Questions
+          const shuffledQuestions = [...data.questions];
+          for (let i = shuffledQuestions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+          }
 
-    s.on('presence_update', (data) => {
-      setIsLive(data.isLive);
-      setIsExcluded(data.excludedStudents.includes(user?.registration_number));
-      setLobbyStudents(data.onlineStudents);
-    });
+          // 2. Shuffle Options for each question
+          data.questions = shuffledQuestions.map((q: any) => {
+            const options = [
+              { id: 'a', text: q.option_a },
+              { id: 'b', text: q.option_b },
+              { id: 'c', text: q.option_c },
+              { id: 'd', text: q.option_d }
+            ];
+            
+            // Shuffle the options array
+            for (let i = options.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [options[i], options[j]] = [options[j], options[i]];
+            }
 
-    s.on('quiz_started', () => setIsLive(true));
-    s.on('quiz_stopped', () => setIsLive(false));
+            // Find the new key for the correct answer
+            const newCorrectIdx = options.findIndex(opt => opt.id === q.correct_answer);
+            const newCorrectKey = ['a', 'b', 'c', 'd'][newCorrectIdx];
 
-    return () => { s.disconnect(); };
-  }, [id, user?.registration_number]);
+            return {
+              ...q,
+              option_a: options[0].text,
+              option_b: options[1].text,
+              option_c: options[2].text,
+              option_d: options[3].text,
+              correct_answer: newCorrectKey
+            };
+          });
+        }
+
+        setQuiz(data);
+        
+        // Apply priority mode time extension
+        let baseTime = data.time_limit * 60;
+        if (user?.is_priority) baseTime *= 1.5;
+        setTimeLeft(baseTime);
+
+        if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
+      } catch (err) {
+        console.error(err);
+        navigate('/dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token && id) checkAttemptAndFetchQuiz();
+  }, [id, token, navigate, user?.is_priority]);
 
   // Accessibility: Text to Speech
   const speak = (text: string) => {
@@ -66,18 +114,13 @@ export default function QuizPage() {
   // Security: Tab Switch Detection
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && !showResult && isLive) {
+      if (document.hidden && !showResult) {
         setSecurityViolations(prev => prev + 1);
         setShowSecurityWarning(true);
-        socket?.emit('security_violation', { 
-          quizId: id, 
-          userId: user?.registration_number, 
-          type: 'tab_switch' 
-        });
       }
     };
     const handleBlur = () => {
-      if (!showResult && isLive) {
+      if (!showResult) {
         setSecurityViolations(prev => prev + 1);
         setShowSecurityWarning(true);
       }
@@ -88,7 +131,7 @@ export default function QuizPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [showResult, isLive, id, user?.registration_number, socket]);
+  }, [showResult]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -107,74 +150,19 @@ export default function QuizPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    fetch(`/api/quizzes/${id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(res => res.json()).then(data => {
-      // Shuffle questions and options for each student session
-      if (data.questions && Array.isArray(data.questions)) {
-        // 1. Shuffle Questions
-        const shuffledQuestions = [...data.questions];
-        for (let i = shuffledQuestions.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
-        }
-
-        // 2. Shuffle Options for each question
-        data.questions = shuffledQuestions.map(q => {
-          const options = [
-            { id: 'a', text: q.option_a },
-            { id: 'b', text: q.option_b },
-            { id: 'c', text: q.option_c },
-            { id: 'd', text: q.option_d }
-          ];
-          
-          // Shuffle the options array
-          for (let i = options.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [options[i], options[j]] = [options[j], options[i]];
-          }
-
-          // Find the new key for the correct answer
-          const newCorrectIdx = options.findIndex(opt => opt.id === q.correct_answer);
-          const newCorrectKey = ['a', 'b', 'c', 'd'][newCorrectIdx];
-
-          return {
-            ...q,
-            option_a: options[0].text,
-            option_b: options[1].text,
-            option_c: options[2].text,
-            option_d: options[3].text,
-            correct_answer: newCorrectKey
-          };
-        });
-      }
-      setQuiz(data);
-      // Apply priority mode time extension
-      let baseTime = data.time_limit * 60;
-      if (priorityMode === 'disability') baseTime *= 1.5; // 50% more time
-      setTimeLeft(baseTime);
-
-      // Initialize question timer if applicable
-      if (data.question_timer && data.question_timer > 0) {
-        setQuestionTimeLeft(data.question_timer);
-      }
-    });
-  }, [id, token, priorityMode]);
-
   // Main Quiz Timer
   useEffect(() => {
-    if (timeLeft > 0 && !showResult && isLive && !isExcluded) {
+    if (timeLeft > 0 && !showResult && quiz) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0 && quiz && !showResult && isLive && !isExcluded) {
+    } else if (timeLeft === 0 && quiz && !showResult) {
       handleSubmit();
     }
-  }, [timeLeft, quiz, showResult, isLive, isExcluded]);
+  }, [timeLeft, quiz, showResult]);
 
   // Per-Question Timer
   useEffect(() => {
-    if (quiz?.question_timer && quiz.question_timer > 0 && !showResult && isLive && !isExcluded) {
+    if (quiz?.question_timer && quiz.question_timer > 0 && !showResult) {
       const qTimer = setInterval(() => {
         setQuestionTimeLeft(prev => {
           if (prev <= 1) {
@@ -192,7 +180,7 @@ export default function QuizPage() {
       }, 1000);
       return () => clearInterval(qTimer);
     }
-  }, [quiz, currentIdx, showResult, isLive, isExcluded]);
+  }, [quiz, currentIdx, showResult]);
 
   // Reset question timer when manually changing questions
   useEffect(() => {
@@ -232,82 +220,18 @@ export default function QuizPage() {
     }
   };
 
-  if (!isConnected) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-6">
-        <div className="bg-white p-12 rounded-[40px] border-2 border-[#141414] shadow-[12px_12px_0px_0px_#141414] text-center space-y-6 max-w-md">
-          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
-            <Loader2 className="animate-spin" size={32} />
-          </div>
-          <h2 className="text-2xl font-black uppercase tracking-tighter">Establishing Connection</h2>
-          <p className="text-sm text-gray-500 font-medium uppercase tracking-widest leading-relaxed">Syncing with the live assessment server. Please stay on this page.</p>
+      <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center p-6">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mx-auto" />
+          <p className="text-xs font-black uppercase tracking-widest opacity-40">Loading Assessment...</p>
         </div>
       </div>
     );
   }
 
-  if (!quiz) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" /></div>;
-
-  if (!isLive || isExcluded) {
-    return (
-      <div className="max-w-4xl mx-auto py-12 px-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-12"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="space-y-4 text-center md:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
-                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Live Lobby Active</span>
-              </div>
-              <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">
-                {isExcluded ? 'Session Restricted' : 'Waiting in Lobby'}
-              </h2>
-              <p className="text-sm font-medium opacity-50 uppercase tracking-widest max-w-md">
-                {isExcluded 
-                  ? 'Your access to this session has been restricted by the administrator.' 
-                  : 'You have successfully joined the session. The assessment will begin once the administrator starts the quiz.'}
-              </p>
-            </div>
-            <div className="bg-indigo-50 text-indigo-600 p-10 rounded-full border-2 border-indigo-100 shadow-inner">
-              <Clock size={80} className="animate-pulse" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-50 p-6 rounded-3xl border border-[#141414]/5 space-y-2">
-              <p className="text-[10px] font-bold uppercase opacity-40">Connected Students</p>
-              <p className="text-3xl font-black">{lobbyStudents.length}</p>
-              <div className="flex -space-x-2 overflow-hidden">
-                {lobbyStudents.slice(0, 5).map((_, i) => (
-                  <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-200" />
-                ))}
-                {lobbyStudents.length > 5 && (
-                  <div className="flex items-center justify-center h-6 w-6 rounded-full ring-2 ring-white bg-gray-200 text-[8px] font-bold">
-                    +{lobbyStudents.length - 5}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="bg-gray-50 p-6 rounded-3xl border border-[#141414]/5 space-y-2">
-              <p className="text-[10px] font-bold uppercase opacity-40">Your Status</p>
-              <div className="flex items-center gap-2 text-emerald-600">
-                <ShieldCheck size={20} />
-                <p className="text-sm font-black uppercase">Connected & Waiting</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-3 text-xs font-bold uppercase opacity-30 pt-8 border-t border-dashed border-[#141414]/10">
-            <Loader2 className="animate-spin" size={16} />
-            <span>Syncing with server...</span>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+  if (!quiz) return null;
 
   if (showResult) {
     return (
