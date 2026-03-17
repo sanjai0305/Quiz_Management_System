@@ -10,12 +10,6 @@ export interface User {
   section?: 'A' | 'B';
   profile_picture?: string;
   year?: number;
-  priority_category?: 'none' | 'children' | 'disability' | 'senior';
-  security_status?: {
-    camera_active: boolean;
-    os_secure: boolean;
-    browser_lock: boolean;
-  };
 }
 
 export interface Quiz {

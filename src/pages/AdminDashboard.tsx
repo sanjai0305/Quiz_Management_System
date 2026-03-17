@@ -5,7 +5,7 @@ import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications' | 'security'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications'>('students');
   const { token, user } = useAuth();
 
   return (
@@ -21,7 +21,6 @@ export default function AdminDashboard() {
           <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
           <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
           <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Send size={18} />} label="Alerts" />
-          <TabButton active={activeTab === 'security'} onClick={() => setActiveTab('security')} icon={<ShieldCheck size={18} />} label="Security" />
         </div>
       </header>
 
@@ -30,7 +29,6 @@ export default function AdminDashboard() {
         {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
         {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
         {activeTab === 'notifications' && <div key="notifications"><NotificationCenter token={token!} /></div>}
-        {activeTab === 'security' && <div key="security"><SecurityCenter token={token!} /></div>}
       </AnimatePresence>
     </div>
   );
@@ -113,47 +111,6 @@ function StudentManager({ token }: { token: string }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
-              <ShieldCheck size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">OS Security</h4>
-          </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Status: Protected</p>
-          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full w-[98%]" />
-          </div>
-        </div>
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-              <Camera size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Camera Facilities</h4>
-          </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Active Nodes: 12/12</p>
-          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-blue-500 h-full w-full" />
-          </div>
-        </div>
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
-              <Accessibility size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Priority Access</h4>
-          </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Mode: Inclusive Stage-Wise</p>
-          <div className="flex flex-wrap gap-1">
-            <span className="text-[8px] font-black uppercase bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">Children</span>
-            <span className="text-[8px] font-black uppercase bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100">Disability</span>
-            <span className="text-[8px] font-black uppercase bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded border border-orange-100">Senior</span>
-          </div>
-        </div>
-      </div>
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h3 className="text-xl font-bold uppercase tracking-tight">Student Registry</h3>
@@ -444,8 +401,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     department: 'AIML',
     profile_picture: '',
     year: 1,
-    section: 'A' as 'A' | 'B',
-    priority_category: 'none' as 'none' | 'children' | 'disability' | 'senior'
+    section: 'A' as 'A' | 'B'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -568,19 +524,6 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                   <option value="B">Section B</option>
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
-                <select 
-                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                  value={formData.priority_category}
-                  onChange={e => setFormData({...formData, priority_category: e.target.value as any})}
-                >
-                  <option value="none">None</option>
-                  <option value="children">Children</option>
-                  <option value="disability">Disability</option>
-                  <option value="senior">Senior</option>
-                </select>
-              </div>
             </div>
           </div>
 
@@ -598,6 +541,7 @@ function QuizManager({ token }: { token: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+  const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
     const res = await fetch('/api/quizzes', {
@@ -605,6 +549,17 @@ function QuizManager({ token }: { token: string }) {
     });
     const data = await res.json();
     setQuizzes(data);
+  };
+
+  const handleDeleteQuiz = async (id: number) => {
+    const res = await fetch(`/api/quizzes/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      fetchQuizzes();
+      setQuizToDelete(null);
+    }
   };
 
   useEffect(() => { fetchQuizzes(); }, []);
@@ -639,6 +594,13 @@ function QuizManager({ token }: { token: string }) {
               >
                 <Pencil size={18} />
               </button>
+              <button 
+                onClick={() => setQuizToDelete(quiz.id)}
+                className="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                title="Delete Quiz"
+              >
+                <Trash2 size={18} />
+              </button>
               <div className="bg-gray-50 p-4 rounded-xl border border-[#141414]/5">
                 <BookOpen size={24} className="opacity-20" />
               </div>
@@ -649,6 +611,26 @@ function QuizManager({ token }: { token: string }) {
 
       {showAdd && <QuizModal onClose={() => setShowAdd(false)} onAdded={fetchQuizzes} token={token} />}
       {editingQuizId && <QuizModal quizId={editingQuizId} onClose={() => setEditingQuizId(null)} onAdded={fetchQuizzes} token={token} />}
+      
+      <AnimatePresence>
+        {quizToDelete && (
+          <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white border-2 border-[#141414] w-full max-w-sm rounded-3xl p-8 text-center space-y-6">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+                <Trash2 size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold uppercase">Delete Quiz?</h3>
+                <p className="text-xs opacity-50 mt-2 font-medium">This will permanently remove the quiz and all associated questions and student attempts.</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setQuizToDelete(null)} className="flex-1 py-3 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase tracking-widest">Cancel</button>
+                <button onClick={() => handleDeleteQuiz(quizToDelete)} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-700">Delete</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -1048,261 +1030,6 @@ function NotificationCenter({ token }: { token: string }) {
                 Ensure your <code className="bg-white px-1 rounded">TELEGRAM_BOT_TOKEN</code> is correctly set in the environment.
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function SecurityCenter({ token }: { token: string }) {
-  const [cameraStatus, setCameraStatus] = useState<'active' | 'offline'>('active');
-  const [osStatus, setOsStatus] = useState<'secure' | 'warning'>('secure');
-  const [students, setStudents] = useState<User[]>([]);
-  const [activeStage, setActiveStage] = useState(1);
-
-  useEffect(() => {
-    fetch('/api/students', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(res => res.json()).then(setStudents);
-  }, []);
-
-  const priorityStudents = students.filter(s => s.priority_category && s.priority_category !== 'none');
-
-  const stages = [
-    { id: 1, name: 'Campus Entrance', status: 'secure', icon: <Lock size={16} /> },
-    { id: 2, name: 'Academic Blocks', status: 'secure', icon: <Cpu size={16} /> },
-    { id: 3, name: 'Laboratory Zone', status: 'warning', icon: <Camera size={16} /> },
-    { id: 4, name: 'Examination Halls', status: 'secure', icon: <ShieldCheck size={16} /> }
-  ];
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-8 pb-20"
-    >
-      <div className="bg-[#141414] text-white p-8 rounded-[3rem] shadow-brutal relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="space-y-4 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
-              <ShieldCheck size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest">System Secure</span>
-            </div>
-            <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Safety & Security<br/>Command Center</h2>
-            <p className="text-sm font-medium opacity-60 max-w-md">
-              Advanced monitoring for OS integrity, camera facilities, and stage-wise priority access control.
-            </p>
-          </div>
-          <div className="flex gap-4">
-            <div className="p-6 bg-white/5 border border-white/10 rounded-[2rem] text-center">
-              <Camera className="mx-auto mb-2 text-blue-400" size={32} />
-              <p className="text-[10px] font-black uppercase opacity-40">Camera</p>
-              <p className="text-xl font-black">ACTIVE</p>
-            </div>
-            <div className="p-6 bg-white/5 border border-white/10 rounded-[2rem] text-center">
-              <Cpu className="mx-auto mb-2 text-emerald-400" size={32} />
-              <p className="text-[10px] font-black uppercase opacity-40">OS Sec</p>
-              <p className="text-xl font-black">SAFE</p>
-            </div>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 blur-[100px] -mr-32 -mt-32" />
-      </div>
-
-      {/* Stage-wise Security Monitoring */}
-      <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tighter">Stage-Wise Security</h3>
-            <p className="text-[10px] font-bold uppercase opacity-40">Zonal Monitoring System</p>
-          </div>
-          <div className="flex bg-gray-100 p-1 rounded-xl border border-[#141414]/5">
-            {stages.map(stage => (
-              <button
-                key={stage.id}
-                onClick={() => setActiveStage(stage.id)}
-                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeStage === stage.id ? 'bg-[#141414] text-white' : 'text-[#141414]/40 hover:text-[#141414]'}`}
-              >
-                Stage {stage.id}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stages.map(stage => (
-            <div 
-              key={stage.id}
-              className={`p-6 rounded-3xl border-2 transition-all ${activeStage === stage.id ? 'border-[#141414] bg-white shadow-brutal-sm' : 'border-transparent bg-gray-50 opacity-60'}`}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-xl ${stage.status === 'secure' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                  {stage.icon}
-                </div>
-                <div className={`w-2 h-2 rounded-full ${stage.status === 'secure' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-              </div>
-              <h4 className="text-sm font-black uppercase tracking-tight mb-1">{stage.name}</h4>
-              <p className={`text-[10px] font-bold uppercase ${stage.status === 'secure' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {stage.status === 'secure' ? 'Secure & Monitored' : 'Attention Required'}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Priority Assistance Section */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-brutal-sm">
-                <Accessibility size={24} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter">Priority Registry</h3>
-                <p className="text-[10px] font-bold uppercase opacity-40">Special Assistance Monitoring</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {priorityStudents.length === 0 ? (
-                <div className="text-center py-8 opacity-30 font-bold uppercase text-[10px]">No priority students registered</div>
-              ) : (
-                priorityStudents.map(student => (
-                  <div key={student.id} className="p-4 bg-gray-50 border-2 border-[#141414]/5 rounded-2xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-white border border-[#141414]/10 rounded-lg overflow-hidden">
-                        {student.profile_picture ? (
-                          <img src={student.profile_picture} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={14} /></div>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-tight">{student.name}</p>
-                        <p className="text-[8px] font-bold opacity-40 uppercase">{student.registration_number}</p>
-                      </div>
-                    </div>
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                      student.priority_category === 'disability' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                      student.priority_category === 'children' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                      'bg-orange-50 text-orange-600 border-orange-100'
-                    }`}>
-                      {student.priority_category}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-              <p className="text-[10px] font-medium text-amber-800 leading-relaxed">
-                <strong>Note:</strong> Stage-wise priority access is automatically granted to these students at all campus checkpoints.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
-            <div className="flex items-center gap-4 mb-6">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-brutal-sm ${osStatus === 'secure' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter">OS Security</h3>
-                <p className="text-[10px] font-bold uppercase opacity-40">System Integrity Monitor</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-xl border-2 border-[#141414]/5">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Kernel Protection</span>
-                  <span className="text-[10px] font-black uppercase text-emerald-600">Active</span>
-                </div>
-                <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full w-full" />
-                </div>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-xl border-2 border-[#141414]/5">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Firewall Status</span>
-                  <span className="text-[10px] font-black uppercase text-emerald-600">Secure</span>
-                </div>
-                <div className="w-full bg-gray-200 h-1 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full w-[95%]" />
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setOsStatus(osStatus === 'secure' ? 'warning' : 'secure')}
-              className="w-full mt-6 bg-[#141414] text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#2a2a2a] transition-all shadow-brutal-sm text-xs"
-            >
-              Run Security Audit
-            </button>
-          </div>
-        </div>
-
-        {/* Camera Facilities */}
-        <div className="lg:col-span-2 bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal">
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center shadow-brutal-sm">
-                <Camera size={24} />
-              </div>
-              <div>
-                <h3 className="text-2xl font-black uppercase tracking-tighter">Camera Facilities</h3>
-                <p className="text-[10px] font-bold uppercase opacity-40">Live Surveillance & Proctoring</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl border-2 border-red-100">
-              <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Live Feed</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map(cam => (
-              <div key={cam} className="relative aspect-video bg-gray-900 rounded-2xl overflow-hidden border-2 border-[#141414] group">
-                <img 
-                  src={`https://picsum.photos/seed/security-cam-${cam}/800/450?grayscale`} 
-                  alt={`Camera ${cam}`}
-                  className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">
-                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-[8px] font-black uppercase tracking-widest text-white">CAM-0{cam}</span>
-                </div>
-                <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white mb-1">Hallway {cam}</p>
-                    <p className="text-[8px] font-medium text-white/50 uppercase">Zone: {cam % 2 === 0 ? 'Primary' : 'Secondary'}</p>
-                  </div>
-                  <div className="text-[8px] font-mono text-white/50">
-                    {new Date().toLocaleTimeString()}
-                  </div>
-                </div>
-                <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 p-6 bg-gray-50 rounded-3xl border-2 border-[#141414]/5 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white border-2 border-[#141414] rounded-xl shadow-brutal-sm">
-                <Users className="text-indigo-600" size={20} />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-tighter">AI Proctoring Active</p>
-                <p className="text-[10px] font-medium opacity-50 uppercase">Monitoring 12 active sessions</p>
-              </div>
-            </div>
-            <button className="bg-[#141414] text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#2a2a2a] transition-all shadow-brutal-sm">
-              View All Feeds
-            </button>
           </div>
         </div>
       </div>

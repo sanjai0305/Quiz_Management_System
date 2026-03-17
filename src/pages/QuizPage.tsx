@@ -51,6 +51,44 @@ export default function QuizPage() {
     fetch(`/api/quizzes/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(res => res.json()).then(data => {
+      // Shuffle questions and options for each student session
+      if (data.questions && Array.isArray(data.questions)) {
+        // 1. Shuffle Questions
+        const shuffledQuestions = [...data.questions];
+        for (let i = shuffledQuestions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+        }
+
+        // 2. Shuffle Options for each question
+        data.questions = shuffledQuestions.map(q => {
+          const options = [
+            { id: 'a', text: q.option_a },
+            { id: 'b', text: q.option_b },
+            { id: 'c', text: q.option_c },
+            { id: 'd', text: q.option_d }
+          ];
+          
+          // Shuffle the options array
+          for (let i = options.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [options[i], options[j]] = [options[j], options[i]];
+          }
+
+          // Find the new key for the correct answer
+          const newCorrectIdx = options.findIndex(opt => opt.id === q.correct_answer);
+          const newCorrectKey = ['a', 'b', 'c', 'd'][newCorrectIdx];
+
+          return {
+            ...q,
+            option_a: options[0].text,
+            option_b: options[1].text,
+            option_c: options[2].text,
+            option_d: options[3].text,
+            correct_answer: newCorrectKey
+          };
+        });
+      }
       setQuiz(data);
       setTimeLeft(data.time_limit * 60);
     });

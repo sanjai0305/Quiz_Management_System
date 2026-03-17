@@ -103,7 +103,8 @@ async function startServer() {
         department, 
         profile_picture, 
         year: year || 1,
-        section: section || 'A'
+        section: section || 'A',
+        created_by: (req as any).user.id
       }]);
 
     if (error) return res.status(400).json({ error: error.message });
@@ -114,7 +115,8 @@ async function startServer() {
     try {
       const { data: students, error } = await supabase
         .from('students')
-        .select('*');
+        .select('*')
+        .eq('created_by', (req as any).user.id);
       
       if (error) {
         console.error('Supabase Error:', error);
@@ -208,9 +210,25 @@ async function startServer() {
   });
 
   app.get('/api/quizzes', authenticateToken, async (req, res) => {
-    const { data: quizzes, error } = await supabase.from('quizzes').select('*');
+    const { data: quizzes, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('created_by', (req as any).user.id);
     if (error) return res.status(500).json({ error: error.message });
     res.json(quizzes);
+  });
+
+  app.delete('/api/quizzes/:id', authenticateToken, async (req, res) => {
+    const quizId = req.params.id;
+    // Delete related questions first
+    await supabase.from('questions').delete().eq('quiz_id', quizId);
+    // Delete related attempts
+    await supabase.from('attempts').delete().eq('quiz_id', quizId);
+    // Delete the quiz
+    const { error } = await supabase.from('quizzes').delete().eq('id', quizId).eq('created_by', (req as any).user.id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
   });
 
   app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
@@ -254,9 +272,10 @@ async function startServer() {
         score,
         total_questions,
         attempt_date,
-        students (name, registration_number),
+        students!inner (name, registration_number, created_by),
         quizzes (title)
       `)
+      .eq('students.created_by', (req as any).user.id)
       .order('score', { ascending: false })
       .order('attempt_date', { ascending: true });
 
