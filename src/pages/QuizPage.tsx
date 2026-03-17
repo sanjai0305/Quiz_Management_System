@@ -32,7 +32,7 @@ export default function QuizPage() {
         
         if (attempted) {
           alert('You have already attempted this quiz.');
-          navigate('/dashboard');
+          navigate('/student');
           return;
         }
 
@@ -91,7 +91,7 @@ export default function QuizPage() {
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
       } catch (err) {
         console.error(err);
-        navigate('/dashboard');
+        navigate('/student');
       } finally {
         setLoading(false);
       }

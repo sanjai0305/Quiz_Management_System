@@ -28,6 +28,12 @@ export default function StudentDashboard() {
       setQuizzes(Array.isArray(qData) ? qData : []);
       setResults(Array.isArray(rData) ? rData : []);
       setLeaderboard(Array.isArray(lData) ? lData : []);
+      
+      console.log('Dashboard Data Loaded:', {
+        quizzesCount: Array.isArray(qData) ? qData.length : 0,
+        resultsCount: Array.isArray(rData) ? rData.length : 0,
+        results: rData
+      });
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -39,8 +45,8 @@ export default function StudentDashboard() {
     fetchData();
   }, [token]);
 
-  const isAttempted = (quizId: number) => {
-    return Array.isArray(results) && results.some(r => r.quiz_id === quizId);
+  const isAttempted = (quizId: number | string) => {
+    return Array.isArray(results) && results.some(r => r.quiz_id.toString() === quizId.toString());
   };
 
   const handleStartQuiz = (quiz: Quiz) => {

@@ -317,7 +317,7 @@ async function startServer() {
       .select('id')
       .eq('student_id', student_id)
       .eq('quiz_id', quiz_id)
-      .single();
+      .maybeSingle();
 
     if (existingAttempt) {
       return res.status(400).json({ error: 'You have already attempted this quiz.' });
@@ -418,9 +418,9 @@ async function startServer() {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const formatted = results.map((a: any) => ({
+    const formatted = (results || []).map((a: any) => ({
       quiz_id: a.quiz_id,
-      title: a.quizzes.title,
+      title: a.quizzes?.title || 'Unknown Quiz',
       score: a.score,
       total_questions: a.total_questions,
       attempt_date: a.attempt_date,
