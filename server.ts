@@ -56,6 +56,11 @@ async function startServer() {
         excludedStudents: Array.from(session.excluded),
         isLive: session.isLive
       });
+
+      // If admin joins, broadcast to all students that a session is available
+      if (role === 'admin') {
+        io.emit('session_available', { quizId: qId });
+      }
     });
 
     socket.on('start_quiz', ({ quizId }) => {
@@ -128,10 +133,14 @@ async function startServer() {
     });
 
     socket.on('disconnect', () => {
-      // Clean up presence (optional, but good for accuracy)
-      liveSessions.forEach((session, quizId) => {
-        // We'd need to map socket.id to userId to do this properly
-      });
+      // If an admin disconnects, notify students that the session is closed
+      // This is a bit complex because we need to know if the socket was an admin for a specific quiz
+      // For now, let's add an explicit 'close_session' event
+    });
+
+    socket.on('close_session', ({ quizId }) => {
+      const qId = String(quizId);
+      io.emit('session_closed', { quizId: qId });
     });
   });
 

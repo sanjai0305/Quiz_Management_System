@@ -1,16 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { Quiz } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, Send } from 'lucide-react';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { io, Socket } from 'socket.io-client';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [liveQuizId, setLiveQuizId] = useState<string | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const s = io();
+    setSocket(s);
+
+    s.on('session_available', (data) => {
+      // Only show if the quiz is in the student's available quizzes
+      setQuizzes(prevQuizzes => {
+        const isEligible = prevQuizzes.some(q => q.id.toString() === data.quizId.toString());
+        if (isEligible) {
+          setLiveQuizId(data.quizId);
+        }
+        return prevQuizzes;
+      });
+    });
+
+    s.on('session_closed', (data) => {
+      setLiveQuizId(prevId => prevId === data.quizId ? null : prevId);
+    });
+
+    return () => { s.disconnect(); };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,6 +56,41 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-12">
+      <AnimatePresence>
+        {liveQuizId && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-indigo-600 text-white p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(79,70,229,0.3)] border-2 border-[#141414] flex flex-col md:flex-row items-center justify-between gap-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-4 rounded-2xl animate-pulse">
+                <AlertCircle size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black tracking-tight uppercase">Live Assessment Available</h3>
+                <p className="text-xs font-medium opacity-80 uppercase tracking-widest">An administrator has initiated a quiz session. Please join the lobby.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 w-full md:w-auto">
+              <button 
+                onClick={() => setLiveQuizId(null)}
+                className="flex-1 md:flex-none px-6 py-3 border-2 border-white/30 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
+              >
+                Dismiss
+              </button>
+              <button 
+                onClick={() => navigate(`/quiz/${liveQuizId}`)}
+                className="flex-1 md:flex-none px-8 py-3 bg-white text-indigo-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-100 transition-all shadow-brutal-sm"
+              >
+                Accept & Join Lobby
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="flex items-center gap-6">
         <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
           {user?.profile_picture ? (

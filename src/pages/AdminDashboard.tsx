@@ -620,6 +620,11 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
     });
   };
 
+  const handleClose = () => {
+    socket?.emit('close_session', { quizId: quiz.id.toString() });
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
@@ -628,7 +633,7 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
             <h3 className="text-xl font-black uppercase tracking-tight">Live Session Control</h3>
             <p className="text-[10px] font-bold uppercase opacity-40">{quiz.title}</p>
           </div>
-          <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
+          <button onClick={handleClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
 
         <div className="p-8 overflow-y-auto space-y-8">

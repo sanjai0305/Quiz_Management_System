@@ -20,6 +20,7 @@ export default function QuizPage() {
   const [score, setScore] = useState(0);
   const [isLive, setIsLive] = useState(false);
   const [isExcluded, setIsExcluded] = useState(false);
+  const [lobbyStudents, setLobbyStudents] = useState<string[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [verificationStage, setVerificationStage] = useState(1);
   const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
@@ -51,6 +52,7 @@ export default function QuizPage() {
     s.on('presence_update', (data) => {
       setIsLive(data.isLive);
       setIsExcluded(data.excludedStudents.includes(user?.registration_number));
+      setLobbyStudents(data.onlineStudents);
     });
 
     s.on('quiz_started', () => setIsLive(true));
@@ -450,30 +452,66 @@ export default function QuizPage() {
 
   if (!isLive || isExcluded) {
     return (
-      <div className="max-w-2xl mx-auto py-12">
+      <div className="max-w-4xl mx-auto py-12 px-4">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] text-center space-y-8"
+          className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-12"
         >
-          <div className="flex justify-center">
-            <div className="bg-indigo-50 text-indigo-600 p-8 rounded-full animate-pulse">
-              <Clock size={64} />
+          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="space-y-4 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
+                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Live Lobby Active</span>
+              </div>
+              <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">
+                {isExcluded ? 'Session Restricted' : 'Waiting in Lobby'}
+              </h2>
+              <p className="text-sm font-medium opacity-50 uppercase tracking-widest max-w-md">
+                {isExcluded 
+                  ? 'Your access to this session has been restricted by the administrator.' 
+                  : 'You have successfully joined the session. The assessment will begin once the administrator starts the quiz.'}
+              </p>
+            </div>
+            <div className="bg-indigo-50 text-indigo-600 p-10 rounded-full border-2 border-indigo-100 shadow-inner">
+              <Clock size={80} className="animate-pulse" />
             </div>
           </div>
-          <div className="space-y-4">
-            <h2 className="text-4xl font-black tracking-tighter uppercase">
-              {isExcluded ? 'Session Restricted' : 'Waiting for Admin'}
-            </h2>
-            <p className="text-sm font-medium opacity-50 uppercase tracking-widest">
-              {isExcluded 
-                ? 'Your access to this session has been restricted by the administrator.' 
-                : 'The quiz session has not started yet. Please wait for the administrator to begin.'}
-            </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gray-50 p-6 rounded-3xl border border-[#141414]/5 space-y-2">
+              <p className="text-[10px] font-bold uppercase opacity-40">Connected Students</p>
+              <p className="text-3xl font-black">{lobbyStudents.length}</p>
+              <div className="flex -space-x-2 overflow-hidden">
+                {lobbyStudents.slice(0, 5).map((_, i) => (
+                  <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-200" />
+                ))}
+                {lobbyStudents.length > 5 && (
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full ring-2 ring-white bg-gray-200 text-[8px] font-bold">
+                    +{lobbyStudents.length - 5}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="bg-gray-50 p-6 rounded-3xl border border-[#141414]/5 space-y-2">
+              <p className="text-[10px] font-bold uppercase opacity-40">Your Status</p>
+              <div className="flex items-center gap-2 text-emerald-600">
+                <ShieldCheck size={20} />
+                <p className="text-sm font-black uppercase">Verified & Ready</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 p-6 rounded-3xl border border-[#141414]/5 space-y-2">
+              <p className="text-[10px] font-bold uppercase opacity-40">Proctoring</p>
+              <div className="flex items-center gap-2 text-blue-600">
+                <Camera size={20} />
+                <p className="text-sm font-black uppercase">Camera Active</p>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center justify-center gap-3 text-xs font-bold uppercase opacity-30">
+
+          <div className="flex items-center justify-center gap-3 text-xs font-bold uppercase opacity-30 pt-8 border-t border-dashed border-[#141414]/10">
             <Loader2 className="animate-spin" size={16} />
-            <span>Establishing Secure Connection...</span>
+            <span>Syncing with server...</span>
           </div>
         </motion.div>
       </div>
