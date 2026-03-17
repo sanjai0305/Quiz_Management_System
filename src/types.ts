@@ -10,6 +10,7 @@ export interface User {
   section?: 'A' | 'B';
   profile_picture?: string;
   year?: number;
+  is_priority?: boolean;
 }
 
 export interface Quiz {

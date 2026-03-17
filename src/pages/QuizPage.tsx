@@ -23,6 +23,19 @@ export default function QuizPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [verificationStage, setVerificationStage] = useState(1);
   const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
+  const [securityViolations, setSecurityViolations] = useState(0);
+  const [showSecurityWarning, setShowSecurityWarning] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
+    } catch (err) {
+      console.error("Camera error:", err);
+    }
+  };
 
   // Socket Connection
   useEffect(() => {
@@ -57,13 +70,29 @@ export default function QuizPage() {
   // Security: Tab Switch Detection
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && !showResult) {
-        alert('Security Alert: Tab switching is prohibited during the quiz. This incident will be reported.');
+      if (document.hidden && !showResult && isVerified) {
+        setSecurityViolations(prev => prev + 1);
+        setShowSecurityWarning(true);
+        socket?.emit('security_violation', { 
+          quizId: id, 
+          userId: user?.registration_number, 
+          type: 'tab_switch' 
+        });
+      }
+    };
+    const handleBlur = () => {
+      if (!showResult && isVerified) {
+        setSecurityViolations(prev => prev + 1);
+        setShowSecurityWarning(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [showResult]);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [showResult, isVerified, id, user?.registration_number, socket]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -75,6 +104,12 @@ export default function QuizPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quiz, showResult]);
+
+  useEffect(() => {
+    if (user?.is_priority) {
+      setPriorityMode('disability');
+    }
+  }, [user]);
 
   useEffect(() => {
     fetch(`/api/quizzes/${id}`, {
@@ -130,8 +165,6 @@ export default function QuizPage() {
       }
     });
   }, [id, token, priorityMode]);
-
-  const [isVerified, setIsVerified] = useState(false);
 
   // Main Quiz Timer
   useEffect(() => {
@@ -207,51 +240,43 @@ export default function QuizPage() {
 
   if (!isVerified) {
     return (
-      <div className="max-w-2xl mx-auto py-12">
+      <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center p-4 font-sans">
         <AnimatePresence mode="wait">
           {verificationStage === 1 && (
             <motion.div 
               key="stage1"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] max-w-md w-full space-y-8"
             >
               <div className="flex items-center gap-4 mb-8">
-                <div className="bg-amber-100 text-amber-600 p-4 rounded-2xl">
+                <div className="bg-indigo-100 text-indigo-600 p-4 rounded-2xl">
                   <ShieldCheck size={32} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 1: Security</h2>
-                  <p className="text-[10px] font-bold uppercase opacity-40">Identity & Environment Check</p>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 1: Identity</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Verify your details</p>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
-                  <Camera className="text-indigo-600 mt-1" size={20} />
-                  <div>
-                    <p className="text-xs font-bold uppercase mb-1">Camera Facility</p>
-                    <p className="text-[10px] opacity-60 leading-relaxed">Your camera will be active throughout the session for proctoring. Ensure you are in a well-lit area.</p>
-                  </div>
+                <div className="p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+                  <p className="text-[10px] font-bold uppercase opacity-40">Name</p>
+                  <p className="font-bold uppercase">{user?.name}</p>
                 </div>
-                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
-                  <Lock className="text-indigo-600 mt-1" size={20} />
-                  <div>
-                    <p className="text-xs font-bold uppercase mb-1">OS Security</p>
-                    <p className="text-[10px] opacity-60 leading-relaxed">System integrity check completed. Browser environment is locked for this assessment.</p>
-                  </div>
+                <div className="p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+                  <p className="text-[10px] font-bold uppercase opacity-40">Registration</p>
+                  <p className="font-bold uppercase">{user?.registration_number}</p>
                 </div>
               </div>
 
-              <div className="pt-6">
-                <button 
-                  onClick={() => setVerificationStage(2)}
-                  className="w-full bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
-                >
-                  Next Stage <ChevronRight size={20} />
-                </button>
-              </div>
+              <button 
+                onClick={() => setVerificationStage(2)}
+                className="w-full bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
+              >
+                Next Stage <ChevronRight size={20} />
+              </button>
             </motion.div>
           )}
 
@@ -261,15 +286,15 @@ export default function QuizPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] max-w-md w-full space-y-8"
             >
               <div className="flex items-center gap-4 mb-8">
-                <div className="bg-indigo-100 text-indigo-600 p-4 rounded-2xl">
+                <div className="bg-amber-100 text-amber-600 p-4 rounded-2xl">
                   <Accessibility size={32} />
                 </div>
                 <div>
                   <h2 className="text-2xl font-black tracking-tight uppercase">Stage 2: Priority</h2>
-                  <p className="text-[10px] font-bold uppercase opacity-40">Accessibility & Assistance</p>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Accessibility Options</p>
                 </div>
               </div>
 
@@ -286,23 +311,12 @@ export default function QuizPage() {
                 </button>
 
                 <button 
-                  onClick={() => setPriorityMode('child')}
-                  className={`p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between ${priorityMode === 'child' ? 'border-[#141414] bg-indigo-50' : 'border-transparent bg-white hover:border-gray-200'}`}
-                >
-                  <div>
-                    <p className="font-bold uppercase text-sm">Child Priority</p>
-                    <p className="text-[10px] opacity-50">Simplified interface & audio assistance enabled.</p>
-                  </div>
-                  {priorityMode === 'child' && <div className="w-4 h-4 bg-[#141414] rounded-full" />}
-                </button>
-
-                <button 
                   onClick={() => setPriorityMode('disability')}
                   className={`p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between ${priorityMode === 'disability' ? 'border-[#141414] bg-amber-50' : 'border-transparent bg-white hover:border-gray-200'}`}
                 >
                   <div>
-                    <p className="font-bold uppercase text-sm">Disability Support</p>
-                    <p className="text-[10px] opacity-50">Extended time & screen reader optimization.</p>
+                    <p className="font-bold uppercase text-sm">Priority Support</p>
+                    <p className="text-[10px] opacity-50">Extended time & accessibility features.</p>
                   </div>
                   {priorityMode === 'disability' && <div className="w-4 h-4 bg-[#141414] rounded-full" />}
                 </button>
@@ -319,7 +333,7 @@ export default function QuizPage() {
                   onClick={() => setVerificationStage(3)}
                   className="flex-1 bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
                 >
-                  Final Stage <ChevronRight size={20} />
+                  Next <ChevronRight size={20} />
                 </button>
               </div>
             </motion.div>
@@ -331,26 +345,32 @@ export default function QuizPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] max-w-md w-full space-y-8"
             >
               <div className="flex items-center gap-4 mb-8">
                 <div className="bg-emerald-100 text-emerald-600 p-4 rounded-2xl">
-                  <ShieldCheck size={32} />
+                  <Camera size={32} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 3: Ready</h2>
-                  <p className="text-[10px] font-bold uppercase opacity-40">Final Confirmation</p>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 3: Camera</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Proctoring Setup</p>
                 </div>
               </div>
 
-              <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-4">
-                <div className="flex items-center gap-3 text-emerald-700">
-                  <ShieldCheck size={20} />
-                  <p className="text-xs font-bold uppercase">All Systems Secure</p>
-                </div>
-                <p className="text-[10px] text-emerald-600 font-medium leading-relaxed">
-                  You have successfully completed all safety and accessibility stages. Your session is now ready to begin once the administrator starts the quiz.
-                </p>
+              <div className="aspect-video bg-gray-100 rounded-3xl border-2 border-dashed border-[#141414]/20 flex items-center justify-center overflow-hidden relative">
+                {cameraStream ? (
+                  <video 
+                    autoPlay 
+                    muted 
+                    ref={el => { if (el) el.srcObject = cameraStream; }} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center p-6">
+                    <Camera className="mx-auto mb-2 opacity-20" size={48} />
+                    <p className="text-[10px] font-bold uppercase opacity-40">Camera Feed Required</p>
+                  </div>
+                )}
               </div>
 
               <div className="pt-6 flex gap-4">
@@ -360,11 +380,65 @@ export default function QuizPage() {
                 >
                   Back
                 </button>
+                {!cameraStream ? (
+                  <button 
+                    onClick={startCamera}
+                    className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-3"
+                  >
+                    Enable Camera <Camera size={20} />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setVerificationStage(4)}
+                    className="flex-1 bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
+                  >
+                    Next <ChevronRight size={20} />
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {verificationStage === 4 && (
+            <motion.div 
+              key="stage4"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] max-w-md w-full space-y-8"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-rose-100 text-rose-600 p-4 rounded-2xl">
+                  <Lock size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 4: Security</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">OS Environment Lock</p>
+                </div>
+              </div>
+
+              <div className="p-6 bg-rose-50 rounded-3xl border border-rose-100 space-y-4">
+                <div className="flex items-center gap-3 text-rose-700">
+                  <ShieldCheck size={20} />
+                  <p className="text-xs font-bold uppercase">System Integrity Ready</p>
+                </div>
+                <p className="text-[10px] text-rose-600 font-medium leading-relaxed">
+                  The system will now monitor your browser focus. Tab switching, minimizing, or opening other applications will be flagged as a security violation.
+                </p>
+              </div>
+
+              <div className="pt-6 flex gap-4">
+                <button 
+                  onClick={() => setVerificationStage(3)}
+                  className="flex-1 py-4 border-2 border-[#141414] rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 transition-all"
+                >
+                  Back
+                </button>
                 <button 
                   onClick={() => setIsVerified(true)}
-                  className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-3"
+                  className="flex-1 bg-rose-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-rose-700 transition-all flex items-center justify-center gap-3"
                 >
-                  Confirm & Finish <ChevronRight size={20} />
+                  Enter Quiz <Lock size={20} />
                 </button>
               </div>
             </motion.div>

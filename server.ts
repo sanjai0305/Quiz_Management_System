@@ -38,19 +38,20 @@ async function startServer() {
     console.log('User connected:', socket.id);
 
     socket.on('join_quiz', ({ quizId, userId, role }) => {
-      socket.join(`quiz_${quizId}`);
+      const qId = String(quizId);
+      socket.join(`quiz_${qId}`);
       
-      if (!liveSessions.has(quizId)) {
-        liveSessions.set(quizId, { isLive: false, students: new Set(), excluded: new Set() });
+      if (!liveSessions.has(qId)) {
+        liveSessions.set(qId, { isLive: false, students: new Set(), excluded: new Set() });
       }
       
-      const session = liveSessions.get(quizId)!;
-      if (role === 'student') {
-        session.students.add(userId);
+      const session = liveSessions.get(qId)!;
+      if (role === 'student' && userId) {
+        session.students.add(String(userId));
       }
       
-      // Notify admin about student presence
-      io.to(`quiz_${quizId}`).emit('presence_update', {
+      // Notify everyone in the room about student presence
+      io.to(`quiz_${qId}`).emit('presence_update', {
         onlineStudents: Array.from(session.students),
         excludedStudents: Array.from(session.excluded),
         isLive: session.isLive
@@ -58,32 +59,71 @@ async function startServer() {
     });
 
     socket.on('start_quiz', ({ quizId }) => {
-      const session = liveSessions.get(quizId);
+      const qId = String(quizId);
+      const session = liveSessions.get(qId);
       if (session) {
         session.isLive = true;
-        io.to(`quiz_${quizId}`).emit('quiz_started', { quizId });
+        io.to(`quiz_${qId}`).emit('quiz_started', { quizId: qId });
       }
     });
 
     socket.on('stop_quiz', ({ quizId }) => {
-      const session = liveSessions.get(quizId);
+      const qId = String(quizId);
+      const session = liveSessions.get(qId);
       if (session) {
         session.isLive = false;
-        io.to(`quiz_${quizId}`).emit('quiz_stopped', { quizId });
+        io.to(`quiz_${qId}`).emit('quiz_stopped', { quizId: qId });
       }
     });
 
     socket.on('toggle_absent', ({ quizId, studentId, isAbsent }) => {
-      const session = liveSessions.get(quizId);
+      const qId = String(quizId);
+      const session = liveSessions.get(qId);
       if (session) {
-        if (isAbsent) session.excluded.add(studentId);
-        else session.excluded.delete(studentId);
+        const sId = String(studentId);
+        if (isAbsent) session.excluded.add(sId);
+        else session.excluded.delete(sId);
         
-        io.to(`quiz_${quizId}`).emit('presence_update', {
+        io.to(`quiz_${qId}`).emit('presence_update', {
           onlineStudents: Array.from(session.students),
           excludedStudents: Array.from(session.excluded),
           isLive: session.isLive
         });
+      }
+    });
+
+    socket.on('toggle_manual_presence', ({ quizId, studentId, isPresent }) => {
+      const qId = String(quizId);
+      const session = liveSessions.get(qId);
+      if (session) {
+        const sId = String(studentId);
+        if (isPresent) session.students.add(sId);
+        else session.students.delete(sId);
+        
+        io.to(`quiz_${qId}`).emit('presence_update', {
+          onlineStudents: Array.from(session.students),
+          excludedStudents: Array.from(session.excluded),
+          isLive: session.isLive
+        });
+      }
+    });
+
+    socket.on('security_violation', async ({ quizId, userId, type }) => {
+      const qId = String(quizId);
+      console.log(`Security violation: Quiz ${qId}, User ${userId}, Type ${type}`);
+      
+      // Broadcast to admin in the room
+      io.to(`quiz_${qId}`).emit('security_alert', { userId, type });
+
+      // Save to database
+      try {
+        await supabase.from('security_violations').insert([{
+          quiz_id: parseInt(qId),
+          student_id: String(userId),
+          violation_type: type
+        }]);
+      } catch (err) {
+        console.error('Error saving security violation:', err);
       }
     });
 

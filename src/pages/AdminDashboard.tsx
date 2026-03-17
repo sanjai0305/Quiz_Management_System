@@ -570,6 +570,7 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
   const [onlineStudents, setOnlineStudents] = useState<string[]>([]);
   const [excludedStudents, setExcludedStudents] = useState<string[]>([]);
   const [isLive, setIsLive] = useState(false);
+  const [securityLogs, setSecurityLogs] = useState<{userId: string, type: string, time: string}[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -582,6 +583,14 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
       setOnlineStudents(data.onlineStudents);
       setExcludedStudents(data.excludedStudents);
       setIsLive(data.isLive);
+    });
+
+    s.on('security_alert', (data) => {
+      setSecurityLogs(prev => [{ ...data, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 10));
+    });
+
+    s.on('manual_presence_update', (data) => {
+      setOnlineStudents(data.onlineStudents);
     });
 
     return () => { s.disconnect(); };
@@ -600,6 +609,14 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
       quizId: quiz.id.toString(), 
       studentId, 
       isAbsent: !currentStatus 
+    });
+  };
+
+  const toggleManualPresence = (studentId: string, isCurrentlyOnline: boolean) => {
+    socket?.emit('toggle_manual_presence', {
+      quizId: quiz.id.toString(),
+      studentId,
+      isPresent: !isCurrentlyOnline
     });
   };
 
@@ -633,11 +650,26 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
 
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Student Attendance & Readiness</h4>
+              <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Student Attendance & Proctoring</h4>
               <span className="text-[10px] font-bold uppercase bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg">
                 {onlineStudents.length}/{students.length} Present
               </span>
             </div>
+            
+            {securityLogs.length > 0 && (
+              <div className="p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl space-y-2">
+                <p className="text-[10px] font-black uppercase text-rose-600 flex items-center gap-2">
+                  <AlertCircle size={12} /> Security Violations Detected
+                </p>
+                <div className="space-y-1">
+                  {securityLogs.map((log, i) => (
+                    <p key={i} className="text-[9px] font-bold text-rose-500 uppercase">
+                      [{log.time}] Student {log.userId}: {log.type.replace('_', ' ')}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {students.map(student => {
@@ -647,9 +679,18 @@ function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, stude
                 return (
                   <div key={student.id} className={`flex items-center justify-between p-4 border-2 rounded-2xl transition-all ${isExcluded ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-white border-[#141414]/10'}`}>
                     <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                      <button 
+                        onClick={() => toggleManualPresence(student.registration_number!, isOnline)}
+                        className={`w-3 h-3 rounded-full transition-all ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-300 hover:bg-emerald-200'}`}
+                        title={isOnline ? 'Online (Click to force offline)' : 'Offline (Click to force online)'}
+                      />
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-tight">{student.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold uppercase tracking-tight">{student.name}</p>
+                          {student.is_priority && (
+                            <span className="text-[8px] bg-amber-100 text-amber-600 px-1 rounded font-black uppercase">PRIORITY</span>
+                          )}
+                        </div>
                         <p className="text-[8px] font-mono font-bold opacity-40">{student.registration_number}</p>
                       </div>
                     </div>
