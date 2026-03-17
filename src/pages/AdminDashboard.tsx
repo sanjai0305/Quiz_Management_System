@@ -230,12 +230,14 @@ function StudentManager({ token }: { token: string }) {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredStudents.map(student => (
-                      <button 
+                      <div 
                         key={student.id}
-                        onClick={() => setSelectedStudent(student)}
-                        className="flex items-center justify-between p-4 bg-white border-2 border-[#141414] rounded-2xl shadow-brutal-sm hover:shadow-brutal transition-all text-left"
+                        className="group relative flex items-center justify-between p-4 bg-white border-2 border-[#141414] rounded-2xl shadow-brutal-sm hover:shadow-brutal transition-all text-left"
                       >
-                        <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => setSelectedStudent(student)}
+                          className="flex-1 flex items-center gap-4"
+                        >
                           <div className="w-10 h-10 bg-indigo-50 rounded-xl overflow-hidden border border-[#141414]/10">
                             {student.profile_picture ? (
                               <img src={student.profile_picture} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -247,11 +249,23 @@ function StudentManager({ token }: { token: string }) {
                             <h4 className="font-bold text-sm uppercase tracking-tight">{student.name}</h4>
                             <p className="text-[10px] font-mono font-bold text-indigo-600">{student.registration_number}</p>
                           </div>
+                        </button>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right hidden sm:block">
+                            <span className="text-[10px] font-black uppercase opacity-30">{student.year}yr</span>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStudentToDelete(student.id);
+                            }}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Delete Student"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-black uppercase opacity-30">{student.year}yr</span>
-                        </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -266,6 +280,10 @@ function StudentManager({ token }: { token: string }) {
         <StudentProfileModal 
           student={selectedStudent} 
           onClose={() => setSelectedStudent(null)} 
+          onDelete={() => {
+            setStudentToDelete(selectedStudent.id);
+            setSelectedStudent(null);
+          }}
           token={token} 
           quizzes={quizzes}
           attempts={attempts.filter(a => a.student_id === selectedStudent.id)}
@@ -296,7 +314,7 @@ function StudentManager({ token }: { token: string }) {
 }
 
 // --- Student Profile Modal ---
-function StudentProfileModal({ student, onClose, token, quizzes, attempts }: { student: User, onClose: () => void, token: string, quizzes: Quiz[], attempts: Attempt[] }) {
+function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attempts }: { student: User, onClose: () => void, onDelete: () => void, token: string, quizzes: Quiz[], attempts: Attempt[] }) {
   const completedQuizzes = attempts.length;
   const totalQuizzesForYear = quizzes.filter(q => q.year === student.year).length;
   const pendingQuizzes = Math.max(0, totalQuizzesForYear - completedQuizzes);
@@ -308,7 +326,16 @@ function StudentProfileModal({ student, onClose, token, quizzes, attempts }: { s
     <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-8 border-b border-[#141414]/10 flex justify-between items-center">
-          <h3 className="text-xl font-black uppercase tracking-tight">Student Profile</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-black uppercase tracking-tight">Student Profile</h3>
+            <button 
+              onClick={onDelete}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+              title="Delete Student"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
           <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
 

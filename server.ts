@@ -385,6 +385,19 @@ async function startServer() {
     res.json(formatted);
   });
 
+  app.delete('/api/students/:id', authenticateToken, async (req, res) => {
+    if ((req as any).user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ message: 'Student deleted successfully' });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
