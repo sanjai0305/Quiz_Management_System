@@ -22,6 +22,7 @@ export default function QuizPage() {
   const [isExcluded, setIsExcluded] = useState(false);
   const [lobbyStudents, setLobbyStudents] = useState<string[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
   const [securityViolations, setSecurityViolations] = useState(0);
   const [showSecurityWarning, setShowSecurityWarning] = useState(false);
@@ -31,11 +32,16 @@ export default function QuizPage() {
     const s = io();
     setSocket(s);
 
-    s.emit('join_quiz', { 
-      quizId: id, 
-      userId: user?.registration_number, 
-      role: 'student' 
+    s.on('connect', () => {
+      setIsConnected(true);
+      s.emit('join_quiz', { 
+        quizId: id, 
+        userId: user?.registration_number, 
+        role: 'student' 
+      });
     });
+
+    s.on('disconnect', () => setIsConnected(false));
 
     s.on('presence_update', (data) => {
       setIsLive(data.isLive);
@@ -225,6 +231,20 @@ export default function QuizPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-6">
+        <div className="bg-white p-12 rounded-[40px] border-2 border-[#141414] shadow-[12px_12px_0px_0px_#141414] text-center space-y-6 max-w-md">
+          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+            <Loader2 className="animate-spin" size={32} />
+          </div>
+          <h2 className="text-2xl font-black uppercase tracking-tighter">Establishing Connection</h2>
+          <p className="text-sm text-gray-500 font-medium uppercase tracking-widest leading-relaxed">Syncing with the live assessment server. Please stay on this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!quiz) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" /></div>;
 

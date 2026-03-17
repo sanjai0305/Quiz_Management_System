@@ -67,19 +67,33 @@ async function startServer() {
 
     socket.on('start_quiz', ({ quizId }) => {
       const qId = String(quizId);
+      console.log(`Starting quiz: ${qId}`);
       const session = liveSessions.get(qId);
       if (session) {
         session.isLive = true;
         io.to(`quiz_${qId}`).emit('quiz_started', { quizId: qId });
+        // Update everyone about the new state
+        io.to(`quiz_${qId}`).emit('presence_update', {
+          onlineStudents: Array.from(session.students),
+          excludedStudents: Array.from(session.excluded),
+          isLive: true
+        });
       }
     });
 
     socket.on('stop_quiz', ({ quizId }) => {
       const qId = String(quizId);
+      console.log(`Stopping quiz: ${qId}`);
       const session = liveSessions.get(qId);
       if (session) {
         session.isLive = false;
         io.to(`quiz_${qId}`).emit('quiz_stopped', { quizId: qId });
+        // Update everyone about the new state
+        io.to(`quiz_${qId}`).emit('presence_update', {
+          onlineStudents: Array.from(session.students),
+          excludedStudents: Array.from(session.excluded),
+          isLive: false
+        });
       }
     });
 
