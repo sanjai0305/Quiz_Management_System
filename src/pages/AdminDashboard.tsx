@@ -5,7 +5,7 @@ import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
   const { token, user } = useAuth();
 
   return (
@@ -20,7 +20,6 @@ export default function AdminDashboard() {
           <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
           <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
           <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
-          <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Send size={18} />} label="Alerts" />
         </div>
       </header>
 
@@ -28,7 +27,6 @@ export default function AdminDashboard() {
         {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
         {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
         {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
-        {activeTab === 'notifications' && <div key="notifications"><NotificationCenter token={token!} /></div>}
       </AnimatePresence>
     </div>
   );
@@ -955,56 +953,153 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
 
 // --- Leaderboard View ---
 function LeaderboardView({ token }: { token: string }) {
-  const [data, setData] = useState<Attempt[]>([]);
+  const [data, setData] = useState<any[]>([]);
+  const [filters, setFilters] = useState({ year: '', department: '', section: '' });
+  const [loading, setLoading] = useState(true);
+
+  const fetchLeaderboard = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.year) params.append('year', filters.year);
+      if (filters.department) params.append('department', filters.department);
+      if (filters.section) params.append('section', filters.section);
+
+      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetch('/api/leaderboard', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(res => res.json()).then(setData);
-  }, []);
+    fetchLeaderboard();
+  }, [filters]);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b-2 border-[#141414]">
-              <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Rank</th>
-              <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Student</th>
-              <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Quiz</th>
-              <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Score</th>
-              <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, i) => (
-              <tr key={i} className="border-b border-[#141414]/5 hover:bg-gray-50 transition-colors">
-                <td className="p-6">
-                  <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                    i === 0 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                    i === 1 ? 'bg-gray-100 text-gray-700 border border-gray-200' :
-                    i === 2 ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                    'text-gray-400'
-                  }`}>
-                    {i + 1}
-                  </span>
-                </td>
-                <td className="p-6">
-                  <p className="font-bold">{row.name}</p>
-                  <p className="text-[10px] font-mono opacity-50">{row.registration_number}</p>
-                </td>
-                <td className="p-6 font-medium">{row.quiz_name}</td>
-                <td className="p-6">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-lg">{row.score}</span>
-                    <span className="text-[10px] opacity-30">/ {row.total_questions}</span>
-                  </div>
-                </td>
-                <td className="p-6 text-xs opacity-50">{new Date(row.attempt_date).toLocaleDateString()}</td>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+      <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-brutal-sm flex flex-wrap gap-4">
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Year</label>
+          <select 
+            value={filters.year} 
+            onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
+          >
+            <option value="">All Years</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Department</label>
+          <select 
+            value={filters.department} 
+            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
+          >
+            <option value="">All Departments</option>
+            <option value="AIML">AIML</option>
+            <option value="CSE">CSE</option>
+            <option value="ECE">ECE</option>
+            <option value="IT">IT</option>
+            <option value="MECH">MECH</option>
+          </select>
+        </div>
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Section</label>
+          <select 
+            value={filters.section} 
+            onChange={(e) => setFilters({ ...filters, section: e.target.value })}
+            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
+          >
+            <option value="">All Sections</option>
+            <option value="A">Section A</option>
+            <option value="B">Section B</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b-2 border-[#141414]">
+                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Rank</th>
+                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Student</th>
+                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Class</th>
+                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Total Score</th>
+                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Accuracy</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="p-12 text-center">
+                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-xs font-bold uppercase opacity-30">Fetching Leaderboard...</p>
+                  </td>
+                </tr>
+              ) : data.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-12 text-center">
+                    <p className="text-xs font-bold uppercase opacity-30">No data found for selected filters</p>
+                  </td>
+                </tr>
+              ) : (
+                data.map((row, i) => (
+                  <tr key={i} className="border-b border-[#141414]/5 hover:bg-gray-50 transition-colors">
+                    <td className="p-6">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                        i === 0 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                        i === 1 ? 'bg-gray-100 text-gray-700 border border-gray-200' :
+                        i === 2 ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                        'text-gray-400'
+                      }`}>
+                        {i + 1}
+                      </span>
+                    </td>
+                    <td className="p-6">
+                      <p className="font-bold">{row.name}</p>
+                      <p className="text-[10px] font-mono opacity-50">{row.registration_number}</p>
+                    </td>
+                    <td className="p-6">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                          {row.year}yr {row.department}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
+                          Sec {row.section}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-6">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-lg">{row.totalScore}</span>
+                        <span className="text-[10px] opacity-30">Points</span>
+                      </div>
+                    </td>
+                    <td className="p-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden max-w-[100px]">
+                          <div className="h-full bg-emerald-500" style={{ width: `${row.percentage}%` }} />
+                        </div>
+                        <span className="text-xs font-bold">{Math.round(row.percentage)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </motion.div>
   );

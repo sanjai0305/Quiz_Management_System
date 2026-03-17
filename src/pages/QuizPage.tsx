@@ -18,8 +18,6 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
-  const [securityViolations, setSecurityViolations] = useState(0);
-  const [showSecurityWarning, setShowSecurityWarning] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,34 +102,6 @@ export default function QuizPage() {
   }, [id, token, navigate, user?.is_priority]);
 
   // Accessibility: Text to Speech
-  const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  // Security: Tab Switch Detection
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && !showResult) {
-        setSecurityViolations(prev => prev + 1);
-        setShowSecurityWarning(true);
-      }
-    };
-    const handleBlur = () => {
-      if (!showResult) {
-        setSecurityViolations(prev => prev + 1);
-        setShowSecurityWarning(true);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [showResult]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -420,32 +390,6 @@ export default function QuizPage() {
       </div>
 
       <aside className="space-y-6">
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-50">Live Monitoring</h4>
-          </div>
-          <div className="aspect-video bg-gray-900 rounded-2xl overflow-hidden relative border border-[#141414]/10">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <AlertCircle size={24} className="text-white/30" />
-                </div>
-                <p className="text-[8px] font-bold uppercase text-white/40">Camera Active</p>
-              </div>
-            </div>
-            <div className="absolute top-2 left-2 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest">
-              REC
-            </div>
-            <div className="absolute bottom-2 right-2 text-white/50 text-[8px] font-mono">
-              {new Date().toLocaleTimeString()}
-            </div>
-          </div>
-          <p className="text-[9px] font-bold uppercase opacity-30 mt-4 text-center leading-relaxed">
-            AI-Powered Proctoring in Progress. Maintain focus on the screen.
-          </p>
-        </div>
-
         <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
           <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-4">System Security</h4>
           <div className="space-y-3">

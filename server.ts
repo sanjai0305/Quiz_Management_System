@@ -321,32 +321,64 @@ async function startServer() {
   });
 
   app.get('/api/leaderboard', authenticateToken, async (req, res) => {
-    const { data: leaderboard, error } = await supabase
+    const { year, department, section } = req.query;
+    const user = (req as any).user;
+
+    let query = supabase
       .from('attempts')
       .select(`
         score,
         total_questions,
-        attempt_date,
-        students!inner (name, registration_number, created_by),
-        quizzes (title)
-      `)
-      .eq('students.created_by', (req as any).user.id)
-      .order('score', { ascending: false })
-      .order('attempt_date', { ascending: true });
+        students!inner (id, name, registration_number, year, department, section, created_by)
+      `);
+
+    if (user.role === 'student') {
+      const { data: student } = await supabase.from('students').select('*').eq('id', user.id).single();
+      if (student) {
+        query = query.eq('students.year', student.year)
+                     .eq('students.department', student.department)
+                     .eq('students.section', student.section);
+      }
+    } else {
+      if (year) query = query.eq('students.year', year);
+      if (department) query = query.eq('students.department', department);
+      if (section) query = query.eq('students.section', section);
+      query = query.eq('students.created_by', user.id);
+    }
+
+    const { data: attempts, error } = await query;
 
     if (error) return res.status(500).json({ error: error.message });
-    
-    // Format for frontend
-    const formatted = leaderboard.map((a: any) => ({
-      name: a.students.name,
-      registration_number: a.students.registration_number,
-      quiz_name: a.quizzes.title,
-      score: a.score,
-      total_questions: a.total_questions,
-      attempt_date: a.attempt_date
-    }));
 
-    res.json(formatted);
+    const studentMap: Record<number, any> = {};
+    attempts.forEach((a: any) => {
+      const s = a.students;
+      if (!studentMap[s.id]) {
+        studentMap[s.id] = {
+          id: s.id,
+          name: s.name,
+          registration_number: s.registration_number,
+          year: s.year,
+          department: s.department,
+          section: s.section,
+          totalScore: 0,
+          totalQuestions: 0,
+          attempts: 0
+        };
+      }
+      studentMap[s.id].totalScore += a.score;
+      studentMap[s.id].totalQuestions += a.total_questions;
+      studentMap[s.id].attempts += 1;
+    });
+
+    const leaderboard = Object.values(studentMap)
+      .map((s: any) => ({
+        ...s,
+        percentage: s.totalQuestions > 0 ? (s.totalScore / s.totalQuestions) * 100 : 0
+      }))
+      .sort((a, b) => b.totalScore - a.totalScore || b.percentage - a.percentage);
+
+    res.json(leaderboard);
   });
 
   app.get('/api/student/results', authenticateToken, async (req, res) => {

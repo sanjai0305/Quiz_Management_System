@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<Attempt[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -15,12 +16,14 @@ export default function StudentDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [qRes, rRes] = await Promise.all([
+      const [qRes, rRes, lRes] = await Promise.all([
         fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       setQuizzes(await qRes.json());
       setResults(await rRes.json());
+      setLeaderboard(await lRes.json());
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -171,6 +174,57 @@ export default function StudentDashboard() {
           <section>
             <div className="flex items-center gap-3 mb-6">
               <Trophy className="text-yellow-600" />
+              <h3 className="text-xl font-bold uppercase tracking-tight">Class Leaderboard</h3>
+            </div>
+            
+            <div className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+              <div className="p-4 bg-gray-50 border-b-2 border-[#141414] flex justify-between items-center">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Top Performers</span>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
+                  {user?.department} - {user?.section}
+                </span>
+              </div>
+              <div className="divide-y divide-[#141414]/5">
+                {leaderboard.length === 0 ? (
+                  <div className="p-8 text-center opacity-30 text-xs font-bold uppercase">No data available</div>
+                ) : (
+                  leaderboard.slice(0, 5).map((row, i) => (
+                    <div key={i} className={`p-4 flex items-center justify-between ${row.id === user?.id ? 'bg-indigo-50/50' : ''}`}>
+                      <div className="flex items-center gap-4">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                          i === 0 ? 'bg-yellow-400 text-white' :
+                          i === 1 ? 'bg-gray-400 text-white' :
+                          i === 2 ? 'bg-orange-400 text-white' :
+                          'bg-gray-100 text-gray-400'
+                        }`}>
+                          {i + 1}
+                        </span>
+                        <div>
+                          <p className={`text-sm font-bold ${row.id === user?.id ? 'text-indigo-600' : ''}`}>
+                            {row.name} {row.id === user?.id && '(You)'}
+                          </p>
+                          <p className="text-[10px] opacity-40 font-mono">{row.registration_number}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-sm">{row.totalScore}</p>
+                        <p className="text-[8px] font-bold uppercase opacity-30">Points</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {leaderboard.length > 5 && (
+                <div className="p-3 bg-gray-50 text-center border-t border-[#141414]/5">
+                  <p className="text-[8px] font-bold uppercase opacity-40">Showing top 5 of {leaderboard.length} students</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <Trophy className="text-emerald-600" />
               <h3 className="text-xl font-bold uppercase tracking-tight">Recent Performance</h3>
             </div>
             
