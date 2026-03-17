@@ -105,7 +105,11 @@ export default function StudentDashboard() {
             
             <div className="space-y-12">
               {[1, 2, 3, 4].map(year => {
-                const yearQuizzes = quizzes.filter(q => q.year === year);
+                const yearQuizzes = quizzes.filter(q => 
+                  q.year === year && 
+                  q.department === user?.department && 
+                  (q.section === 'Both' || q.section === user?.section)
+                );
                 if (yearQuizzes.length === 0) return null;
                 return (
                   <div key={year} className="space-y-6">
@@ -125,7 +129,13 @@ export default function StudentDashboard() {
                         >
                           <div>
                             <div className="flex items-center gap-2 mb-3">
-                              <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject}</p>
+                              <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
+                                {quiz.department}
+                              </span>
+                              <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
+                                Sec: {quiz.section}
+                              </span>
+                              <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
                             </div>
                             <h4 className="font-bold text-xl mb-2">{quiz.title}</h4>
                             <div className="flex items-center gap-4 text-xs opacity-50 mb-6">

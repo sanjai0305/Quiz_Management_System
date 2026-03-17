@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -15,9 +17,83 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-mini-project';
 
+// --- Live Quiz State ---
+const liveSessions = new Map<string, { 
+  isLive: boolean, 
+  students: Set<string>, // Connected student IDs
+  excluded: Set<string>  // Absent/Excluded student IDs
+}>();
+
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const io = new Server(httpServer, {
+    cors: { origin: "*" }
+  });
+
   app.use(express.json({ limit: '10mb' }));
+
+  // --- Socket.io Logic ---
+  io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    socket.on('join_quiz', ({ quizId, userId, role }) => {
+      socket.join(`quiz_${quizId}`);
+      
+      if (!liveSessions.has(quizId)) {
+        liveSessions.set(quizId, { isLive: false, students: new Set(), excluded: new Set() });
+      }
+      
+      const session = liveSessions.get(quizId)!;
+      if (role === 'student') {
+        session.students.add(userId);
+      }
+      
+      // Notify admin about student presence
+      io.to(`quiz_${quizId}`).emit('presence_update', {
+        onlineStudents: Array.from(session.students),
+        excludedStudents: Array.from(session.excluded),
+        isLive: session.isLive
+      });
+    });
+
+    socket.on('start_quiz', ({ quizId }) => {
+      const session = liveSessions.get(quizId);
+      if (session) {
+        session.isLive = true;
+        io.to(`quiz_${quizId}`).emit('quiz_started', { quizId });
+      }
+    });
+
+    socket.on('stop_quiz', ({ quizId }) => {
+      const session = liveSessions.get(quizId);
+      if (session) {
+        session.isLive = false;
+        io.to(`quiz_${quizId}`).emit('quiz_stopped', { quizId });
+      }
+    });
+
+    socket.on('toggle_absent', ({ quizId, studentId, isAbsent }) => {
+      const session = liveSessions.get(quizId);
+      if (session) {
+        if (isAbsent) session.excluded.add(studentId);
+        else session.excluded.delete(studentId);
+        
+        io.to(`quiz_${quizId}`).emit('presence_update', {
+          onlineStudents: Array.from(session.students),
+          excludedStudents: Array.from(session.excluded),
+          isLive: session.isLive
+        });
+      }
+    });
+
+    socket.on('disconnect', () => {
+      // Clean up presence (optional, but good for accuracy)
+      liveSessions.forEach((session, quizId) => {
+        // We'd need to map socket.id to userId to do this properly
+      });
+    });
+  });
 
   // --- Auth Middleware ---
   const authenticateToken = (req: any, res: any, next: any) => {
@@ -169,7 +245,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, year, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -178,7 +254,10 @@ async function startServer() {
         title, 
         subject, 
         time_limit, 
+        question_timer: question_timer || 0,
         year: year || 1, 
+        department: department || 'AIML',
+        section: section || 'Both',
         created_by: (req as any).user.id 
       }])
       .select()
@@ -205,13 +284,13 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, year, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
     const { error: quizError } = await supabase
       .from('quizzes')
-      .update({ title, subject, time_limit, year: year || 1 })
+      .update({ title, subject, time_limit, question_timer: question_timer || 0, year: year || 1, department: department || 'AIML', section: section || 'Both' })
       .eq('id', quizId);
 
     if (quizError) return res.status(500).json({ error: quizError.message });
@@ -430,7 +509,7 @@ async function startServer() {
   }
 
   const PORT = process.env.PORT || 3000;
-  app.listen(Number(PORT), '0.0.0.0', () => {
+  httpServer.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server is live and listening on 0.0.0.0:${PORT}`);
   });
 }

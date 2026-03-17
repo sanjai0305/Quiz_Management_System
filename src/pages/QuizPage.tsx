@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
-import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Accessibility, Volume2, ShieldCheck, Camera, Lock } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Accessibility, Volume2, ShieldCheck, Camera, Lock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { io, Socket } from 'socket.io-client';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -13,9 +14,37 @@ export default function QuizPage() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timeLeft, setTimeLeft] = useState(0);
+  const [questionTimeLeft, setQuestionTimeLeft] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
+  const [isLive, setIsLive] = useState(false);
+  const [isExcluded, setIsExcluded] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [verificationStage, setVerificationStage] = useState(1);
+  const [priorityMode, setPriorityMode] = useState<'standard' | 'child' | 'disability'>('standard');
+
+  // Socket Connection
+  useEffect(() => {
+    const s = io();
+    setSocket(s);
+
+    s.emit('join_quiz', { 
+      quizId: id, 
+      userId: user?.registration_number, 
+      role: 'student' 
+    });
+
+    s.on('presence_update', (data) => {
+      setIsLive(data.isLive);
+      setIsExcluded(data.excludedStudents.includes(user?.registration_number));
+    });
+
+    s.on('quiz_started', () => setIsLive(true));
+    s.on('quiz_stopped', () => setIsLive(false));
+
+    return () => { s.disconnect(); };
+  }, [id, user?.registration_number]);
 
   // Accessibility: Text to Speech
   const speak = (text: string) => {
@@ -90,20 +119,58 @@ export default function QuizPage() {
         });
       }
       setQuiz(data);
-      setTimeLeft(data.time_limit * 60);
+      // Apply priority mode time extension
+      let baseTime = data.time_limit * 60;
+      if (priorityMode === 'disability') baseTime *= 1.5; // 50% more time
+      setTimeLeft(baseTime);
+
+      // Initialize question timer if applicable
+      if (data.question_timer && data.question_timer > 0) {
+        setQuestionTimeLeft(data.question_timer);
+      }
     });
-  }, [id, token]);
+  }, [id, token, priorityMode]);
 
   const [isVerified, setIsVerified] = useState(false);
 
+  // Main Quiz Timer
   useEffect(() => {
-    if (timeLeft > 0 && !showResult && isVerified) {
+    if (timeLeft > 0 && !showResult && isVerified && isLive && !isExcluded) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0 && quiz && !showResult && isVerified) {
+    } else if (timeLeft === 0 && quiz && !showResult && isVerified && isLive && !isExcluded) {
       handleSubmit();
     }
-  }, [timeLeft, quiz, showResult, isVerified]);
+  }, [timeLeft, quiz, showResult, isVerified, isLive, isExcluded]);
+
+  // Per-Question Timer
+  useEffect(() => {
+    if (quiz?.question_timer && quiz.question_timer > 0 && !showResult && isVerified && isLive && !isExcluded) {
+      const qTimer = setInterval(() => {
+        setQuestionTimeLeft(prev => {
+          if (prev <= 1) {
+            // Time up for this question
+            if (currentIdx < (quiz.questions?.length || 0) - 1) {
+              setCurrentIdx(c => c + 1);
+              return quiz.question_timer || 0;
+            } else {
+              handleSubmit();
+              return 0;
+            }
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(qTimer);
+    }
+  }, [quiz, currentIdx, showResult, isVerified, isLive, isExcluded]);
+
+  // Reset question timer when manually changing questions
+  useEffect(() => {
+    if (quiz?.question_timer && quiz.question_timer > 0) {
+      setQuestionTimeLeft(quiz.question_timer);
+    }
+  }, [currentIdx, quiz?.question_timer]);
 
   const handleSubmit = async () => {
     if (!quiz || !quiz.questions) return;
@@ -141,45 +208,198 @@ export default function QuizPage() {
   if (!isVerified) {
     return (
       <div className="max-w-2xl mx-auto py-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
-        >
-          <div className="flex items-center gap-4 mb-8">
-            <div className="bg-amber-100 text-amber-600 p-4 rounded-2xl">
-              <ShieldCheck size={32} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black tracking-tight uppercase">Safety Verification</h2>
-              <p className="text-[10px] font-bold uppercase opacity-40">Identity & Environment Check</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
-              <Camera className="text-indigo-600 mt-1" size={20} />
-              <div>
-                <p className="text-xs font-bold uppercase mb-1">Camera Facility</p>
-                <p className="text-[10px] opacity-60 leading-relaxed">Your camera will be active throughout the session for proctoring. Ensure you are in a well-lit area.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
-              <Lock className="text-indigo-600 mt-1" size={20} />
-              <div>
-                <p className="text-xs font-bold uppercase mb-1">OS Security</p>
-                <p className="text-[10px] opacity-60 leading-relaxed">System integrity check completed. Browser environment is locked for this assessment.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-6">
-            <button 
-              onClick={() => setIsVerified(true)}
-              className="w-full bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
+        <AnimatePresence mode="wait">
+          {verificationStage === 1 && (
+            <motion.div 
+              key="stage1"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
             >
-              Confirm & Start Assessment <ChevronRight size={20} />
-            </button>
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-amber-100 text-amber-600 p-4 rounded-2xl">
+                  <ShieldCheck size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 1: Security</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Identity & Environment Check</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+                  <Camera className="text-indigo-600 mt-1" size={20} />
+                  <div>
+                    <p className="text-xs font-bold uppercase mb-1">Camera Facility</p>
+                    <p className="text-[10px] opacity-60 leading-relaxed">Your camera will be active throughout the session for proctoring. Ensure you are in a well-lit area.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+                  <Lock className="text-indigo-600 mt-1" size={20} />
+                  <div>
+                    <p className="text-xs font-bold uppercase mb-1">OS Security</p>
+                    <p className="text-[10px] opacity-60 leading-relaxed">System integrity check completed. Browser environment is locked for this assessment.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button 
+                  onClick={() => setVerificationStage(2)}
+                  className="w-full bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
+                >
+                  Next Stage <ChevronRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {verificationStage === 2 && (
+            <motion.div 
+              key="stage2"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-indigo-100 text-indigo-600 p-4 rounded-2xl">
+                  <Accessibility size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 2: Priority</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Accessibility & Assistance</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <button 
+                  onClick={() => setPriorityMode('standard')}
+                  className={`p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between ${priorityMode === 'standard' ? 'border-[#141414] bg-gray-50' : 'border-transparent bg-white hover:border-gray-200'}`}
+                >
+                  <div>
+                    <p className="font-bold uppercase text-sm">Standard Mode</p>
+                    <p className="text-[10px] opacity-50">Standard assessment rules apply.</p>
+                  </div>
+                  {priorityMode === 'standard' && <div className="w-4 h-4 bg-[#141414] rounded-full" />}
+                </button>
+
+                <button 
+                  onClick={() => setPriorityMode('child')}
+                  className={`p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between ${priorityMode === 'child' ? 'border-[#141414] bg-indigo-50' : 'border-transparent bg-white hover:border-gray-200'}`}
+                >
+                  <div>
+                    <p className="font-bold uppercase text-sm">Child Priority</p>
+                    <p className="text-[10px] opacity-50">Simplified interface & audio assistance enabled.</p>
+                  </div>
+                  {priorityMode === 'child' && <div className="w-4 h-4 bg-[#141414] rounded-full" />}
+                </button>
+
+                <button 
+                  onClick={() => setPriorityMode('disability')}
+                  className={`p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between ${priorityMode === 'disability' ? 'border-[#141414] bg-amber-50' : 'border-transparent bg-white hover:border-gray-200'}`}
+                >
+                  <div>
+                    <p className="font-bold uppercase text-sm">Disability Support</p>
+                    <p className="text-[10px] opacity-50">Extended time & screen reader optimization.</p>
+                  </div>
+                  {priorityMode === 'disability' && <div className="w-4 h-4 bg-[#141414] rounded-full" />}
+                </button>
+              </div>
+
+              <div className="pt-6 flex gap-4">
+                <button 
+                  onClick={() => setVerificationStage(1)}
+                  className="flex-1 py-4 border-2 border-[#141414] rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 transition-all"
+                >
+                  Back
+                </button>
+                <button 
+                  onClick={() => setVerificationStage(3)}
+                  className="flex-1 bg-[#141414] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all flex items-center justify-center gap-3"
+                >
+                  Final Stage <ChevronRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {verificationStage === 3 && (
+            <motion.div 
+              key="stage3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] space-y-8"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-emerald-100 text-emerald-600 p-4 rounded-2xl">
+                  <ShieldCheck size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">Stage 3: Ready</h2>
+                  <p className="text-[10px] font-bold uppercase opacity-40">Final Confirmation</p>
+                </div>
+              </div>
+
+              <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-4">
+                <div className="flex items-center gap-3 text-emerald-700">
+                  <ShieldCheck size={20} />
+                  <p className="text-xs font-bold uppercase">All Systems Secure</p>
+                </div>
+                <p className="text-[10px] text-emerald-600 font-medium leading-relaxed">
+                  You have successfully completed all safety and accessibility stages. Your session is now ready to begin once the administrator starts the quiz.
+                </p>
+              </div>
+
+              <div className="pt-6 flex gap-4">
+                <button 
+                  onClick={() => setVerificationStage(2)}
+                  className="flex-1 py-4 border-2 border-[#141414] rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 transition-all"
+                >
+                  Back
+                </button>
+                <button 
+                  onClick={() => setIsVerified(true)}
+                  className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-3"
+                >
+                  Confirm & Finish <ChevronRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  if (!isLive || isExcluded) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] text-center space-y-8"
+        >
+          <div className="flex justify-center">
+            <div className="bg-indigo-50 text-indigo-600 p-8 rounded-full animate-pulse">
+              <Clock size={64} />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-4xl font-black tracking-tighter uppercase">
+              {isExcluded ? 'Session Restricted' : 'Waiting for Admin'}
+            </h2>
+            <p className="text-sm font-medium opacity-50 uppercase tracking-widest">
+              {isExcluded 
+                ? 'Your access to this session has been restricted by the administrator.' 
+                : 'The quiz session has not started yet. Please wait for the administrator to begin.'}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 text-xs font-bold uppercase opacity-30">
+            <Loader2 className="animate-spin" size={16} />
+            <span>Establishing Secure Connection...</span>
           </div>
         </motion.div>
       </div>
@@ -231,7 +451,8 @@ export default function QuizPage() {
   const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
-  const fontSizeClass = 'text-xl';
+  const fontSizeClass = priorityMode === 'child' ? 'text-2xl' : priorityMode === 'disability' ? 'text-3xl' : 'text-xl';
+  const spacingClass = priorityMode === 'standard' ? 'gap-4' : 'gap-8';
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -243,6 +464,19 @@ export default function QuizPage() {
         </div>
         
         <div className="flex items-center gap-6">
+          {quiz.question_timer && quiz.question_timer > 0 && (
+            <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
+              questionTimeLeft < 5 
+                ? 'bg-amber-500 border-[#141414] text-white animate-pulse' 
+                : 'bg-amber-50 border-[#141414] text-amber-700 shadow-[4px_4px_0px_0px_rgba(245,158,11,0.3)]'
+            }`}>
+              <Clock size={20} />
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Question Time</span>
+                <span className="font-mono font-black text-xl leading-none">{questionTimeLeft}s</span>
+              </div>
+            </div>
+          )}
           <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
             timeLeft < 60 
               ? 'bg-red-600 border-[#141414] text-white shadow-[4px_4px_0px_0px_rgba(220,38,38,0.3)] animate-pulse' 

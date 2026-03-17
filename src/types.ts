@@ -17,7 +17,10 @@ export interface Quiz {
   title: string;
   subject: string;
   time_limit: number;
+  question_timer?: number; // Seconds per question
   year: number;
+  department: string;
+  section: 'A' | 'B' | 'Both';
   questions?: Question[];
 }
 

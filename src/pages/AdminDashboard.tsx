@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock, Send, Cpu } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility, User as UserIcon, Pencil, Eye, ShieldCheck, Camera, Lock, X, Upload, ChevronRight, Clock, Send, Cpu, Play, Square, UserCheck, UserX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { io, Socket } from 'socket.io-client';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'notifications'>('students');
@@ -563,12 +564,119 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   );
 }
 
-// --- Quiz Manager ---
+// --- Live Quiz Control Modal ---
+function LiveQuizControl({ quiz, students, onClose, token }: { quiz: Quiz, students: User[], onClose: () => void, token: string }) {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [onlineStudents, setOnlineStudents] = useState<string[]>([]);
+  const [excludedStudents, setExcludedStudents] = useState<string[]>([]);
+  const [isLive, setIsLive] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const s = io();
+    setSocket(s);
+
+    s.emit('join_quiz', { quizId: quiz.id.toString(), userId: user?.name, role: 'admin' });
+
+    s.on('presence_update', (data) => {
+      setOnlineStudents(data.onlineStudents);
+      setExcludedStudents(data.excludedStudents);
+      setIsLive(data.isLive);
+    });
+
+    return () => { s.disconnect(); };
+  }, [quiz.id]);
+
+  const toggleStart = () => {
+    if (isLive) {
+      socket?.emit('stop_quiz', { quizId: quiz.id.toString() });
+    } else {
+      socket?.emit('start_quiz', { quizId: quiz.id.toString() });
+    }
+  };
+
+  const toggleAbsent = (studentId: string, currentStatus: boolean) => {
+    socket?.emit('toggle_absent', { 
+      quizId: quiz.id.toString(), 
+      studentId, 
+      isAbsent: !currentStatus 
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-8 border-b border-[#141414]/10 flex justify-between items-center bg-indigo-50">
+          <div>
+            <h3 className="text-xl font-black uppercase tracking-tight">Live Session Control</h3>
+            <p className="text-[10px] font-bold uppercase opacity-40">{quiz.title}</p>
+          </div>
+          <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
+        </div>
+
+        <div className="p-8 overflow-y-auto space-y-8">
+          <div className="flex flex-col sm:flex-row gap-6 items-center justify-between p-6 bg-gray-50 border-2 border-[#141414] rounded-3xl">
+            <div className="flex items-center gap-4">
+              <div className={`w-4 h-4 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest">{isLive ? 'Session Active' : 'Session Ready'}</p>
+                <p className="text-[10px] opacity-50 font-bold uppercase">{onlineStudents.length} Students Connected</p>
+              </div>
+            </div>
+            <button 
+              onClick={toggleStart}
+              className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 transition-all ${isLive ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+            >
+              {isLive ? <><Square size={20} /> Stop Quiz</> : <><Play size={20} /> Start Quiz</>}
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Student Attendance & Readiness</h4>
+              <span className="text-[10px] font-bold uppercase bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg">
+                {onlineStudents.length}/{students.length} Present
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {students.map(student => {
+                const isOnline = onlineStudents.includes(student.registration_number);
+                const isExcluded = excludedStudents.includes(student.registration_number);
+                
+                return (
+                  <div key={student.id} className={`flex items-center justify-between p-4 border-2 rounded-2xl transition-all ${isExcluded ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-white border-[#141414]/10'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-tight">{student.name}</p>
+                        <p className="text-[8px] font-mono font-bold opacity-40">{student.registration_number}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => toggleAbsent(student.registration_number, isExcluded)}
+                      className={`p-2 rounded-xl transition-all ${isExcluded ? 'text-emerald-600 hover:bg-emerald-50' : 'text-red-600 hover:bg-red-50'}`}
+                      title={isExcluded ? 'Mark Present' : 'Mark Absent/Hold'}
+                    >
+                      {isExcluded ? <UserCheck size={16} /> : <UserX size={16} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 function QuizManager({ token }: { token: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
+  const [liveQuizId, setLiveQuizId] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
     const res = await fetch('/api/quizzes', {
@@ -576,6 +684,14 @@ function QuizManager({ token }: { token: string }) {
     });
     const data = await res.json();
     setQuizzes(data);
+  };
+
+  const fetchStudents = async () => {
+    const res = await fetch('/api/students', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setStudents(data);
   };
 
   const handleDeleteQuiz = async (id: number) => {
@@ -589,7 +705,10 @@ function QuizManager({ token }: { token: string }) {
     }
   };
 
-  useEffect(() => { fetchQuizzes(); }, []);
+  useEffect(() => { 
+    fetchQuizzes(); 
+    fetchStudents();
+  }, []);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
@@ -608,12 +727,25 @@ function QuizManager({ token }: { token: string }) {
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
                   Year {quiz.year}
                 </span>
-                <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject}</p>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
+                  {quiz.department}
+                </span>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
+                  Sec: {quiz.section}
+                </span>
+                <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
               </div>
               <h4 className="font-bold text-lg">{quiz.title}</h4>
               <p className="text-xs opacity-50">{quiz.time_limit} Minutes • Multiple Choice</p>
             </div>
             <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setLiveQuizId(quiz.id)}
+                className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all"
+                title="Live Control"
+              >
+                <Play size={18} />
+              </button>
               <button 
                 onClick={() => setEditingQuizId(quiz.id)}
                 className="p-3 bg-gray-50 text-[#141414] rounded-xl border border-[#141414]/10 hover:bg-[#141414] hover:text-white transition-all opacity-0 group-hover:opacity-100"
@@ -628,9 +760,6 @@ function QuizManager({ token }: { token: string }) {
               >
                 <Trash2 size={18} />
               </button>
-              <div className="bg-gray-50 p-4 rounded-xl border border-[#141414]/5">
-                <BookOpen size={24} className="opacity-20" />
-              </div>
             </div>
           </div>
         ))}
@@ -638,6 +767,19 @@ function QuizManager({ token }: { token: string }) {
 
       {showAdd && <QuizModal onClose={() => setShowAdd(false)} onAdded={fetchQuizzes} token={token} />}
       {editingQuizId && <QuizModal quizId={editingQuizId} onClose={() => setEditingQuizId(null)} onAdded={fetchQuizzes} token={token} />}
+      {liveQuizId && (
+        <LiveQuizControl 
+          quiz={quizzes.find(q => q.id === liveQuizId)!} 
+          students={students.filter(s => {
+            const q = quizzes.find(quiz => quiz.id === liveQuizId)!;
+            return s.year === q.year && 
+                   s.department === q.department && 
+                   (q.section === 'Both' || s.section === q.section);
+          })}
+          onClose={() => setLiveQuizId(null)} 
+          token={token} 
+        />
+      )}
       
       <AnimatePresence>
         {quizToDelete && (
@@ -667,7 +809,10 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     title: '',
     subject: '',
     time_limit: 10,
+    question_timer: 0,
     year: 1,
+    department: 'AIML',
+    section: 'Both' as 'A' | 'B' | 'Both',
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
   const [showBulk, setShowBulk] = useState(false);
@@ -688,7 +833,10 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           title: data.title,
           subject: data.subject,
           time_limit: data.time_limit,
+          question_timer: data.question_timer || 0,
           year: data.year,
+          department: data.department || 'AIML',
+          section: data.section || 'Both',
           questions: data.questions.map((q: any) => ({
             text: q.question_text,
             a: q.option_a,
@@ -795,7 +943,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Quiz Title</label>
               <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.title} onChange={e => setQuizData({...quizData, title: e.target.value})} />
@@ -804,9 +952,16 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Subject</label>
               <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.subject} onChange={e => setQuizData({...quizData, subject: e.target.value})} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Time (Min)</label>
               <input type="number" required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.time_limit} onChange={e => setQuizData({...quizData, time_limit: parseInt(e.target.value)})} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Q-Timer (Sec)</label>
+              <input type="number" placeholder="0 = No limit" className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.question_timer} onChange={e => setQuizData({...quizData, question_timer: parseInt(e.target.value)})} />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Target Year</label>
@@ -815,6 +970,21 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 <option value={2}>2nd Year</option>
                 <option value={3}>3rd Year</option>
                 <option value={4}>4th Year</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Department</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.department} onChange={e => setQuizData({...quizData, department: e.target.value})}>
+                <option value="AIML">AIML</option>
+                <option value="IT">IT</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Section</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.section} onChange={e => setQuizData({...quizData, section: e.target.value as any})}>
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="Both">Both Sections</option>
               </select>
             </div>
           </div>
