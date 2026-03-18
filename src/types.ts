@@ -23,6 +23,10 @@ export interface Quiz {
   section: 'A' | 'B' | 'Both';
   questions?: Question[];
   scheduled_at?: string; // ISO date string
+  is_proctored?: boolean;
+  strict_mode?: boolean;
+  priority_category?: 'Normal' | 'Children' | 'Disability';
+  stage_level?: number;
 }
 
 export interface Question {
@@ -47,5 +51,6 @@ export interface Attempt {
   score: number;
   total_questions: number;
   attempt_date: string;
+  malpractice_count?: number;
   responses?: Record<number, string>; // question_id -> selected_option
 }

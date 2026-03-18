@@ -19,6 +19,10 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [malpracticeCount, setMalpracticeCount] = useState(0);
+  const [showMalpracticeWarning, setShowMalpracticeWarning] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
 
@@ -111,24 +115,6 @@ export default function QuizPage() {
     if (token && id) checkAttemptAndFetchQuiz();
   }, [id, token, navigate]);
 
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showResult) return;
-      if (e.key === 'ArrowRight') setCurrentIdx(prev => Math.min((quiz?.questions?.length || 1) - 1, prev + 1));
-      if (e.key === 'ArrowLeft') setCurrentIdx(prev => Math.max(0, prev - 1));
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [quiz, showResult]);
-
-  // Reset question timer when manually changing questions
-  useEffect(() => {
-    if (quiz?.question_timer && quiz.question_timer > 0) {
-      setQuestionTimeLeft(quiz.question_timer);
-    }
-  }, [currentIdx, quiz?.question_timer]);
-
   const answersRef = useRef(answers);
   useEffect(() => {
     answersRef.current = answers;
@@ -155,19 +141,20 @@ export default function QuizPage() {
           quiz_id: quiz.id,
           score: correctCount,
           total_questions: quiz.questions.length,
-          responses: answersRef.current
+          responses: answersRef.current,
+          malpractice_count: malpracticeCount
         })
       });
 
       const attemptResult = await response.json();
 
       // Send Email Notification to Admin
-      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+      const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID;
+      const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID;
+      const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY;
       
       // Use the admin email from the quiz object if available, fallback to env
-      const adminEmail = (quiz as any).admin_email || import.meta.env.VITE_ADMIN_EMAIL;
+      const adminEmail = (quiz as any).admin_email || (import.meta as any).env.VITE_ADMIN_EMAIL;
 
       if (serviceId && templateId && publicKey && adminEmail) {
         // Only send email if the whole class has finished
@@ -176,31 +163,114 @@ export default function QuizPage() {
             admin_email: adminEmail,
             quiz_title: quiz.title,
             completed_group: attemptResult.completedGroup,
-            completion_date: new Date().toLocaleString(),
-            message: `ALL STUDENTS from ${attemptResult.completedGroup} have successfully completed the assessment: "${quiz.title}".`
+            message: `All students in ${attemptResult.completedGroup} have completed the quiz: ${quiz.title}.`,
+            date: new Date().toLocaleString()
           };
 
-          emailjs.send(
-            serviceId,
-            templateId,
-            templateParams,
-            publicKey
-          ).then(() => {
-            console.log('Class completion notification sent to admin');
-          }).catch((err) => {
-            console.error('EmailJS Error:', err);
-          });
+          try {
+            await emailjs.send(serviceId, templateId, templateParams, publicKey);
+            console.log('Class completion email sent successfully');
+          } catch (err) {
+            console.error('Failed to send class completion email:', err);
+          }
         }
       }
 
       setScore(correctCount);
       setShowResult(true);
     } catch (err) {
-      console.error('Failed to submit quiz:', err);
+      console.error('Error submitting quiz:', err);
+      alert('Failed to submit quiz. Please check your internet connection.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [quiz, isSubmitting, token]);
+  }, [quiz, token, isSubmitting, malpracticeCount]);
+
+  // Camera Proctoring Setup
+  useEffect(() => {
+    if (quiz?.is_proctored && !showResult && !loading) {
+      const startCamera = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setCameraStream(stream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (err) {
+          console.error('Camera access denied:', err);
+          alert('Camera access is required for this proctored assessment. Please enable it to continue.');
+        }
+      };
+      startCamera();
+    }
+
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [quiz?.is_proctored, showResult, loading]);
+
+  // Strict Mode (Tab Switching Detection)
+  useEffect(() => {
+    if (quiz?.strict_mode && !showResult && !loading) {
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          setMalpracticeCount(prev => {
+            const next = prev + 1;
+            if (next >= 3) {
+              alert('CRITICAL SECURITY BREACH: Multiple tab switches detected. Auto-submitting assessment.');
+              handleSubmit();
+            } else {
+              setShowMalpracticeWarning(true);
+              setTimeout(() => setShowMalpracticeWarning(false), 3000);
+            }
+            return next;
+          });
+        }
+      };
+
+      const handleBlur = () => {
+        setMalpracticeCount(prev => {
+          const next = prev + 1;
+          if (next >= 3) {
+            alert('CRITICAL SECURITY BREACH: Window focus lost. Auto-submitting assessment.');
+            handleSubmit();
+          } else {
+            setShowMalpracticeWarning(true);
+            setTimeout(() => setShowMalpracticeWarning(false), 3000);
+          }
+          return next;
+        });
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('blur', handleBlur);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('blur', handleBlur);
+      };
+    }
+  }, [quiz?.strict_mode, showResult, loading, handleSubmit]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showResult) return;
+      if (e.key === 'ArrowRight') setCurrentIdx(prev => Math.min((quiz?.questions?.length || 1) - 1, prev + 1));
+      if (e.key === 'ArrowLeft') setCurrentIdx(prev => Math.max(0, prev - 1));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quiz, showResult]);
+
+  // Reset question timer when manually changing questions
+  useEffect(() => {
+    if (quiz?.question_timer && quiz.question_timer > 0) {
+      setQuestionTimeLeft(quiz.question_timer);
+    }
+  }, [currentIdx, quiz?.question_timer]);
 
   // Main Quiz Timer
   useEffect(() => {
@@ -370,6 +440,41 @@ export default function QuizPage() {
 
   return (
     <div className="max-w-6xl mx-auto relative">
+      {/* Security Overlays */}
+      <AnimatePresence>
+        {showMalpracticeWarning && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-red-600 text-white px-8 py-4 rounded-2xl border-4 border-[#141414] shadow-brutal flex items-center gap-4"
+          >
+            <AlertCircle size={24} className="animate-bounce" />
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest">SECURITY WARNING</p>
+              <p className="text-xs font-bold opacity-80 uppercase">Tab switch detected! (Warning {malpracticeCount}/3)</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Proctoring Preview */}
+      {quiz.is_proctored && !showResult && (
+        <div className="fixed bottom-8 right-8 z-[50] w-48 h-36 bg-black border-4 border-[#141414] rounded-2xl shadow-brutal overflow-hidden">
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            muted 
+            playsInline 
+            className="w-full h-full object-cover grayscale"
+          />
+          <div className="absolute top-2 left-2 flex items-center gap-2">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            <span className="text-[8px] font-black text-white uppercase tracking-widest bg-black/40 px-1.5 py-0.5 rounded">LIVE PROCTORING</span>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-8">
         <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
         <div>
@@ -378,6 +483,17 @@ export default function QuizPage() {
         </div>
         
         <div className="flex items-center gap-6">
+          {quiz.priority_category && quiz.priority_category !== 'Normal' && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl border-2 border-[#141414] shadow-brutal-sm">
+              <AlertCircle size={16} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{quiz.priority_category} PRIORITY</span>
+            </div>
+          )}
+          {quiz.stage_level && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl border-2 border-[#141414] shadow-brutal-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest">STAGE {quiz.stage_level}</span>
+            </div>
+          )}
           {quiz.question_timer && quiz.question_timer > 0 && (
             <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
               questionTimeLeft < 5 

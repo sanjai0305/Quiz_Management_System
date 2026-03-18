@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import cron from 'node-cron';
+import * as XLSX from 'xlsx';
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
@@ -174,7 +177,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, priority_category, stage_level } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -188,6 +191,10 @@ async function startServer() {
         department: department || 'AIML',
         section: section || 'Both',
         scheduled_at: scheduled_at || null,
+        is_proctored: is_proctored || false,
+        strict_mode: strict_mode || false,
+        priority_category: priority_category || 'Normal',
+        stage_level: stage_level || 1,
         created_by: (req as any).user.id 
       }])
       .select()
@@ -214,7 +221,7 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, priority_category, stage_level } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
@@ -228,7 +235,11 @@ async function startServer() {
         year: year || 1, 
         department: department || 'AIML', 
         section: section || 'Both',
-        scheduled_at: scheduled_at || null
+        scheduled_at: scheduled_at || null,
+        is_proctored: is_proctored || false,
+        strict_mode: strict_mode || false,
+        priority_category: priority_category || 'Normal',
+        stage_level: stage_level || 1
       })
       .eq('id', quizId);
 
@@ -340,7 +351,7 @@ async function startServer() {
 
   // Attempts & Results
   app.post('/api/attempts', authenticateToken, async (req, res) => {
-    const { quiz_id, score, total_questions, responses } = req.body;
+    const { quiz_id, score, total_questions, responses, malpractice_count } = req.body;
     const student_id = (req as any).user.id;
 
     // Check if already attempted
@@ -362,7 +373,8 @@ async function startServer() {
         quiz_id, 
         score, 
         total_questions,
-        responses: responses || {}
+        responses: responses || {},
+        malpractice_count: malpractice_count || 0
       }]);
 
     if (insertError) return res.status(500).json({ error: insertError.message });
@@ -535,7 +547,7 @@ async function startServer() {
         score,
         total_questions,
         attempt_date,
-        is_malpractice,
+        malpractice_count,
         quizzes:quiz_id (title)
       `)
       .eq('student_id', req.params.id)
@@ -548,7 +560,7 @@ async function startServer() {
       score: a.score,
       total_questions: a.total_questions,
       attempt_date: a.attempt_date,
-      is_malpractice: a.is_malpractice
+      malpractice_count: a.malpractice_count
     }));
 
     res.json(formatted);
@@ -565,6 +577,109 @@ async function startServer() {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ message: 'Student deleted successfully' });
+  });
+
+  // Manual Report Trigger (Admin)
+  app.post('/api/admin/trigger-report', authenticateToken, async (req, res) => {
+    if ((req as any).user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
+    
+    const { date } = req.body; // YYYY-MM-DD
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    try {
+      const { data: quizzes, error: quizError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .gte('scheduled_at', `${targetDate}T00:00:00`)
+        .lte('scheduled_at', `${targetDate}T23:59:59`);
+
+      if (quizError) throw quizError;
+      if (!quizzes || quizzes.length === 0) {
+        return res.status(404).json({ error: `No quizzes found for ${targetDate}` });
+      }
+
+      for (const quiz of quizzes) {
+        let studentQuery = supabase
+          .from('students')
+          .select('id, name, registration_number, year, department, section')
+          .eq('year', quiz.year)
+          .eq('department', quiz.department);
+
+        if (quiz.section !== 'Both') {
+          studentQuery = studentQuery.eq('section', quiz.section);
+        }
+
+        const { data: students, error: studentError } = await studentQuery;
+        if (studentError) throw studentError;
+
+        const { data: attempts, error: attemptError } = await supabase
+          .from('attempts')
+          .select('student_id, score, total_questions, attempt_date')
+          .eq('quiz_id', quiz.id);
+
+        if (attemptError) throw attemptError;
+
+        const reportData = students.map(student => {
+          const attempt = attempts.find(a => a.student_id === student.id);
+          return {
+            'Student Name': student.name,
+            'Reg Number': student.registration_number,
+            'Year': student.year,
+            'Department': student.department,
+            'Section': student.section,
+            'Status': attempt ? 'COMPLETED' : 'PENDING',
+            'Score': attempt ? `${attempt.score}/${attempt.total_questions}` : 'N/A',
+            'Attempt Date': attempt ? new Date(attempt.attempt_date).toLocaleString() : 'N/A'
+          };
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(reportData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Report');
+        const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        // Fetch admin email
+        let adminEmail = process.env.VITE_ADMIN_EMAIL;
+        if (quiz.created_by) {
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('email')
+            .eq('id', quiz.created_by)
+            .single();
+          if (adminData?.email) adminEmail = adminData.email;
+        }
+
+        if (!adminEmail) continue;
+
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        await transporter.sendMail({
+          from: `"Quiz System" <${process.env.SMTP_USER}>`,
+          to: adminEmail,
+          subject: `Manual Quiz Report: ${quiz.title} (${targetDate})`,
+          text: `Please find attached the manual completion report for the quiz "${quiz.title}" scheduled on ${targetDate}.`,
+          attachments: [
+            {
+              filename: `Manual_Report_${quiz.title}_${targetDate}.xlsx`,
+              content: buffer
+            }
+          ]
+        });
+      }
+
+      res.json({ success: true, message: `Reports sent for ${targetDate}` });
+    } catch (err: any) {
+      console.error('Error triggering manual report:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Vite middleware for development
@@ -601,6 +716,120 @@ async function startServer() {
   const PORT = process.env.PORT || 3000;
   app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server is live and listening on 0.0.0.0:${PORT}`);
+  });
+
+  // --- Daily Report Cron Job ---
+  // Runs every day at 12:00 AM (midnight)
+  cron.schedule('0 0 * * *', async () => {
+    console.log('Running daily quiz report cron job...');
+    try {
+      // 1. Get quizzes from "yesterday"
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      const { data: quizzes, error: quizError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .gte('scheduled_at', `${yesterdayStr}T00:00:00`)
+        .lte('scheduled_at', `${yesterdayStr}T23:59:59`);
+
+      if (quizError) throw quizError;
+      if (!quizzes || quizzes.length === 0) {
+        console.log('No quizzes found for yesterday.');
+        return;
+      }
+
+      // 2. For each quiz, generate report
+      for (const quiz of quizzes) {
+        // Fetch admin email
+        let adminEmail = process.env.VITE_ADMIN_EMAIL;
+        if (quiz.created_by) {
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('email')
+            .eq('id', quiz.created_by)
+            .single();
+          if (adminData?.email) adminEmail = adminData.email;
+        }
+
+        if (!adminEmail) {
+          console.warn(`No admin email found for quiz ${quiz.id}, skipping report.`);
+          continue;
+        }
+
+        // Get target students
+        let studentQuery = supabase
+          .from('students')
+          .select('id, name, registration_number, year, department, section')
+          .eq('year', quiz.year)
+          .eq('department', quiz.department);
+
+        if (quiz.section !== 'Both') {
+          studentQuery = studentQuery.eq('section', quiz.section);
+        }
+
+        const { data: students, error: studentError } = await studentQuery;
+        if (studentError) throw studentError;
+
+        // Get attempts
+        const { data: attempts, error: attemptError } = await supabase
+          .from('attempts')
+          .select('student_id, score, total_questions, attempt_date')
+          .eq('quiz_id', quiz.id);
+
+        if (attemptError) throw attemptError;
+
+        // 3. Prepare Excel Data
+        const reportData = students.map(student => {
+          const attempt = attempts.find(a => a.student_id === student.id);
+          return {
+            'Student Name': student.name,
+            'Reg Number': student.registration_number,
+            'Year': student.year,
+            'Department': student.department,
+            'Section': student.section,
+            'Status': attempt ? 'COMPLETED' : 'PENDING',
+            'Score': attempt ? `${attempt.score}/${attempt.total_questions}` : 'N/A',
+            'Attempt Date': attempt ? new Date(attempt.attempt_date).toLocaleString() : 'N/A'
+          };
+        });
+
+        // 4. Create Excel File
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(reportData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Report');
+        const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        // 5. Send Email
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        await transporter.sendMail({
+          from: `"Quiz System" <${process.env.SMTP_USER}>`,
+          to: adminEmail,
+          subject: `Daily Quiz Report: ${quiz.title} (${yesterdayStr})`,
+          text: `Please find attached the completion report for the quiz "${quiz.title}" scheduled on ${yesterdayStr}.`,
+          attachments: [
+            {
+              filename: `Quiz_Report_${quiz.title}_${yesterdayStr}.xlsx`,
+              content: buffer
+            }
+          ]
+        });
+
+        console.log(`Report sent for quiz ${quiz.id} to ${adminEmail}`);
+      }
+    } catch (err) {
+      console.error('Error in daily report cron job:', err);
+    }
   });
 }
 
