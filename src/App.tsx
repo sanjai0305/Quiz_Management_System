@@ -24,11 +24,40 @@ export const useAuth = () => {
   return context;
 };
 
+const ProtectedRoute = ({ children, role }: { children: ReactNode, role: 'admin' | 'student' }) => {
+  const { user, token } = useAuth();
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    // Small delay to ensure state is settled and avoid flash of login
+    const timer = setTimeout(() => setIsReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!token || !user || user.role !== role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
   });
 
   const login = (newToken: string, newUser: User) => {
@@ -53,22 +82,38 @@ export default function App() {
           <Route element={<Layout />}>
             <Route
               path="/admin/*"
-              element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />}
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/student-preview/:id"
-              element={user?.role === 'admin' ? <StudentPreview /> : <Navigate to="/login" />}
+              element={
+                <ProtectedRoute role="admin">
+                  <StudentPreview />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/student/*"
-              element={user?.role === 'student' ? <StudentDashboard /> : <Navigate to="/login" />}
+              element={
+                <ProtectedRoute role="student">
+                  <StudentDashboard />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/quiz/:id"
-              element={user?.role === 'student' ? <QuizPage /> : <Navigate to="/login" />}
+              element={
+                <ProtectedRoute role="student">
+                  <QuizPage />
+                </ProtectedRoute>
+              }
             />
           </Route>
-          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>
