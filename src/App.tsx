@@ -25,13 +25,11 @@ export const useAuth = () => {
 };
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-
-  useEffect(() => {
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('user');
-    if (savedUser) setUser(JSON.parse(savedUser));
-  }, []);
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
