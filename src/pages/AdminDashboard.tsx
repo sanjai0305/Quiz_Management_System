@@ -627,7 +627,14 @@ function QuizManager({ token }: { token: string }) {
                 <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
               </div>
               <h4 className="font-bold text-lg">{quiz.title}</h4>
-              <p className="text-xs opacity-50">{quiz.time_limit} Minutes • Multiple Choice</p>
+              <p className="text-xs opacity-50">
+                {quiz.time_limit} Minutes • Multiple Choice
+                {quiz.scheduled_at && (
+                  <span className="ml-2 text-indigo-600 font-bold">
+                    • Scheduled: {new Date(quiz.scheduled_at).toLocaleString()}
+                  </span>
+                )}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <button 
@@ -684,6 +691,8 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     year: 1,
     department: 'AIML',
     section: 'Both' as 'A' | 'B' | 'Both',
+    scheduled_date: '',
+    scheduled_time: '',
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
   const [showBulk, setShowBulk] = useState(false);
@@ -700,6 +709,19 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
       })
       .then(res => res.json())
       .then(data => {
+        let sDate = '';
+        let sTime = '';
+        if (data.scheduled_at) {
+          const d = new Date(data.scheduled_at);
+          // Get local date and time parts
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          sDate = `${year}-${month}-${day}`;
+          sTime = `${hours}:${minutes}`;
+        }
         setQuizData({
           title: data.title,
           subject: data.subject,
@@ -708,6 +730,8 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           year: data.year,
           department: data.department || 'AIML',
           section: data.section || 'Both',
+          scheduled_date: sDate,
+          scheduled_time: sTime,
           questions: data.questions.map((q: any) => ({
             text: q.question_text,
             a: q.option_a,
@@ -782,6 +806,15 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     const url = quizId ? `/api/quizzes/${quizId}` : '/api/quizzes';
     const method = quizId ? 'PUT' : 'POST';
 
+    const scheduled_at = (quizData.scheduled_date && quizData.scheduled_time) 
+      ? new Date(`${quizData.scheduled_date}T${quizData.scheduled_time}`).toISOString()
+      : null;
+
+    const payload = {
+      ...quizData,
+      scheduled_at
+    };
+
     try {
       const res = await fetch(url, {
         method,
@@ -789,7 +822,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(quizData)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         onAdded();
@@ -857,6 +890,24 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 <option value="B">Section B</option>
                 <option value="Both">Both Sections</option>
               </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Schedule Date</label>
+              <input 
+                type="date" 
+                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
+                value={quizData.scheduled_date} 
+                onChange={e => setQuizData({...quizData, scheduled_date: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Schedule Time</label>
+              <input 
+                type="time" 
+                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
+                value={quizData.scheduled_time} 
+                onChange={e => setQuizData({...quizData, scheduled_time: e.target.value})} 
+              />
             </div>
           </div>
 

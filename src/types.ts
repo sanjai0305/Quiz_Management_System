@@ -22,6 +22,7 @@ export interface Quiz {
   department: string;
   section: 'A' | 'B' | 'Both';
   questions?: Question[];
+  scheduled_at?: string; // ISO date string
 }
 
 export interface Question {

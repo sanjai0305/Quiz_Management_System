@@ -300,26 +300,45 @@ export default function StudentDashboard() {
                               <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
                             </div>
                             <h4 className="font-bold text-xl mb-2">{quiz.title}</h4>
-                            <div className="flex items-center gap-4 text-xs opacity-50 mb-6">
-                              <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
-                              <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
+                            <div className="flex flex-col gap-2 mb-6">
+                              <div className="flex items-center gap-4 text-xs opacity-50">
+                                <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
+                                <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
+                              </div>
+                              {quiz.scheduled_at && (
+                                <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${new Date(quiz.scheduled_at) > new Date() ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                                  <Clock size={12} />
+                                  {new Date(quiz.scheduled_at) > new Date() ? `Starts: ${new Date(quiz.scheduled_at).toLocaleString()}` : 'Quiz is Live'}
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <button 
-                            onClick={() => handleStartQuiz(quiz)}
-                            disabled={isAttempted(quiz.id)}
-                            className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
-                              isAttempted(quiz.id) 
-                                ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-not-allowed' 
-                                : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
-                            }`}
-                          >
-                            {isAttempted(quiz.id) ? (
-                              <>Completed <CheckCircle2 size={16} /></>
-                            ) : (
-                              <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
-                            )}
-                          </button>
+                          {(() => {
+                            const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > new Date();
+                            const attempted = isAttempted(quiz.id);
+                            
+                            return (
+                              <button 
+                                onClick={() => handleStartQuiz(quiz)}
+                                disabled={attempted || isScheduled}
+                                className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
+                                  attempted 
+                                    ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-not-allowed' 
+                                    : isScheduled
+                                    ? 'bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed'
+                                    : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
+                                }`}
+                              >
+                                {attempted ? (
+                                  <>Completed <CheckCircle2 size={16} /></>
+                                ) : isScheduled ? (
+                                  <>Not Started <Clock size={16} /></>
+                                ) : (
+                                  <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+                                )}
+                              </button>
+                            );
+                          })()}
                         </motion.div>
                       ))}
                     </div>

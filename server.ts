@@ -174,7 +174,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -187,6 +187,7 @@ async function startServer() {
         year: year || 1, 
         department: department || 'AIML',
         section: section || 'Both',
+        scheduled_at: scheduled_at || null,
         created_by: (req as any).user.id 
       }])
       .select()
@@ -213,7 +214,7 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
@@ -226,7 +227,8 @@ async function startServer() {
         question_timer: question_timer || 0, 
         year: year || 1, 
         department: department || 'AIML', 
-        section: section || 'Both'
+        section: section || 'Both',
+        scheduled_at: scheduled_at || null
       })
       .eq('id', quizId);
 

@@ -44,6 +44,13 @@ export default function QuizPage() {
         if (!qRes.ok) throw new Error('Quiz not found');
         const data = await qRes.json();
 
+        // Check if quiz is scheduled for the future
+        if (data.scheduled_at && new Date(data.scheduled_at) > new Date()) {
+          alert(`This quiz is scheduled to start at ${new Date(data.scheduled_at).toLocaleString()}`);
+          navigate('/student');
+          return;
+        }
+
         // Shuffle questions and options for each student session
         if (data.questions && Array.isArray(data.questions)) {
           // 1. Shuffle Questions
