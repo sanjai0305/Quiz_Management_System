@@ -1,15 +1,151 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
-import { Quiz, Attempt } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Quiz, Attempt, Question } from '../types';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, CheckCircle2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface ResultModalProps {
+  attempt: Attempt;
+  onClose: () => void;
+}
+
+const ResultModal = ({ attempt, onClose }: ResultModalProps) => {
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { token } = useAuth();
+
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      try {
+        const res = await fetch(`/api/quizzes/${attempt.quiz_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setQuiz(data);
+      } catch (err) {
+        console.error('Failed to fetch quiz details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQuiz();
+  }, [attempt.quiz_id, token]);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#141414]/80 backdrop-blur-sm"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="bg-white border-4 border-[#141414] w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-[2rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] flex flex-col"
+      >
+        <div className="p-6 border-b-4 border-[#141414] flex justify-between items-center bg-gray-50">
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight">{attempt.quiz_name}</h3>
+            <p className="text-[10px] font-bold uppercase opacity-40">Attempted on {new Date(attempt.attempt_date).toLocaleDateString()}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Loading Results...</p>
+            </div>
+          ) : quiz ? (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gray-50 p-6 rounded-3xl border-2 border-[#141414]">
+                  <p className="text-[10px] font-bold uppercase opacity-40 mb-1 text-center">Total</p>
+                  <p className="text-3xl font-black text-center">{attempt.total_questions}</p>
+                </div>
+                <div className="bg-emerald-50 p-6 rounded-3xl border-2 border-emerald-500">
+                  <p className="text-[10px] font-bold uppercase text-emerald-600 mb-1 text-center">Score</p>
+                  <p className="text-3xl font-black text-emerald-700 text-center">{attempt.score}</p>
+                </div>
+                <div className="bg-red-50 p-6 rounded-3xl border-2 border-red-500">
+                  <p className="text-[10px] font-bold uppercase text-red-600 mb-1 text-center">Wrong</p>
+                  <p className="text-3xl font-black text-red-700 text-center">{attempt.total_questions - attempt.score}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h4 className="text-xl font-black uppercase tracking-tight">Question Review</h4>
+                {quiz.questions?.map((q, idx) => {
+                  const studentAns = attempt.responses?.[q.id];
+                  const isCorrect = studentAns === q.correct_answer;
+                  return (
+                    <div key={q.id} className={`p-6 rounded-3xl border-2 border-[#141414] space-y-4 ${isCorrect ? 'bg-emerald-50/30' : 'bg-red-50/30'}`}>
+                      <div className="flex justify-between items-start gap-4">
+                        <h5 className="font-bold text-lg leading-tight">
+                          {idx + 1}. {q.question_text}
+                        </h5>
+                        <div className="flex items-center gap-2">
+                          {isCorrect ? <CheckCircle2 className="text-emerald-600" size={20} /> : <XCircle className="text-red-600" size={20} />}
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                            {isCorrect ? 'Correct' : 'Incorrect'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {['a', 'b', 'c', 'd'].map(opt => {
+                          const optKey = `option_${opt}` as keyof Question;
+                          const isCorrectOpt = q.correct_answer === opt;
+                          const isStudentOpt = studentAns === opt;
+                          
+                          let bgColor = 'bg-white';
+                          let borderColor = 'border-[#141414]/10';
+                          let textColor = 'text-[#141414]';
+
+                          if (isCorrectOpt) {
+                            bgColor = 'bg-emerald-100';
+                            borderColor = 'border-emerald-500';
+                            textColor = 'text-emerald-700';
+                          } else if (isStudentOpt && !isCorrect) {
+                            bgColor = 'bg-red-100';
+                            borderColor = 'border-red-500';
+                            textColor = 'text-red-700';
+                          }
+
+                          return (
+                            <div key={opt} className={`p-4 rounded-xl border-2 flex items-center gap-3 ${bgColor} ${borderColor} ${textColor}`}>
+                              <span className={`w-6 h-6 rounded flex items-center justify-center font-bold uppercase text-[10px] ${isCorrectOpt ? 'bg-emerald-300' : (isStudentOpt ? 'bg-red-300' : 'bg-gray-100')}`}>
+                                {opt}
+                              </span>
+                              <span className="text-sm font-bold">{q[optKey] as string}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-20 opacity-40 font-bold uppercase">Quiz data no longer available</div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<Attempt[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
 
@@ -259,19 +395,27 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 results.map((res, i) => (
-                  <div key={i} className="bg-white border-2 border-[#141414] p-4 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm">{res.title}</h4>
-                      <p className="text-[10px] opacity-50 uppercase tracking-widest">{new Date(res.attempt_date).toLocaleDateString()}</p>
+                  <div key={i} className="bg-white border-2 border-[#141414] p-4 rounded-2xl flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm">{res.title}</h4>
+                        <p className="text-[10px] opacity-50 uppercase tracking-widest">{new Date(res.attempt_date).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
+                        {res.is_malpractice ? (
+                          <p className="text-[10px] font-bold text-red-600 uppercase">Malpractice</p>
+                        ) : (
+                          <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
-                      {res.is_malpractice ? (
-                        <p className="text-[10px] font-bold text-red-600 uppercase">Malpractice</p>
-                      ) : (
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
-                      )}
-                    </div>
+                    <button 
+                      onClick={() => setSelectedAttempt(res)}
+                      className="w-full py-2 bg-gray-50 hover:bg-gray-100 border border-[#141414]/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+                    >
+                      See Answers
+                    </button>
                   </div>
                 ))
               )}
@@ -292,6 +436,15 @@ export default function StudentDashboard() {
           </section>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedAttempt && (
+          <ResultModal 
+            attempt={selectedAttempt} 
+            onClose={() => setSelectedAttempt(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

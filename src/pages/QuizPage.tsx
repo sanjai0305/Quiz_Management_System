@@ -19,6 +19,8 @@ export default function QuizPage() {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<string[]>([]);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
 
@@ -88,7 +90,31 @@ export default function QuizPage() {
         
         // Base time
         let baseTime = data.time_limit * 60;
+        
+        // Priority Mode: Disability (50% extra time)
+        if (data.priority_mode === 'disability') {
+          baseTime = Math.floor(baseTime * 1.5);
+        }
+        
         setTimeLeft(baseTime);
+
+        // Proctoring: Camera Access
+        if (data.proctoring_enabled) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            setCameraStream(stream);
+            // Wait for next tick to ensure videoRef is available
+            setTimeout(() => {
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+              }
+            }, 100);
+          } catch (err) {
+            console.error('Camera access denied:', err);
+            alert('Camera access is required for this proctored assessment.');
+            navigate('/student');
+          }
+        }
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
       } catch (err) {
@@ -100,7 +126,13 @@ export default function QuizPage() {
     };
 
     if (token && id) checkAttemptAndFetchQuiz();
-  }, [id, token, navigate]);
+
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [id, token, navigate, cameraStream]);
 
   // Accessibility: Text to Speech
 
@@ -214,7 +246,8 @@ export default function QuizPage() {
           quiz_id: quiz.id,
           score: malpracticeFlag ? 0 : correctCount,
           total_questions: quiz.questions.length,
-          is_malpractice: malpracticeFlag
+          is_malpractice: malpracticeFlag,
+          responses: answers
         })
       });
       setScore(malpracticeFlag ? 0 : correctCount);
@@ -268,7 +301,7 @@ export default function QuizPage() {
 
   if (showResult) {
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-2xl mx-auto py-12">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-4xl mx-auto py-12 space-y-12">
         <div className="bg-white border-2 border-[#141414] p-12 rounded-[3rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] text-center space-y-8">
           <div className="flex justify-center">
             <div className="bg-emerald-100 text-emerald-600 p-6 rounded-full">
@@ -304,6 +337,56 @@ export default function QuizPage() {
             </button>
           </div>
         </div>
+
+        <div className="space-y-6">
+          <h3 className="text-2xl font-black uppercase tracking-tight">Review Answers</h3>
+          {quiz.questions?.map((q, idx) => {
+            const studentAns = answers[q.id];
+            const isCorrect = studentAns === q.correct_answer;
+            return (
+              <div key={q.id} className={`bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] space-y-4 ${isCorrect ? 'border-emerald-500' : 'border-red-500'}`}>
+                <div className="flex justify-between items-start gap-4">
+                  <h4 className="font-bold text-lg leading-tight">
+                    {idx + 1}. {q.question_text}
+                  </h4>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                    {isCorrect ? 'Correct' : 'Incorrect'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {['a', 'b', 'c', 'd'].map(opt => {
+                    const optKey = `option_${opt}` as keyof Question;
+                    const isCorrectOpt = q.correct_answer === opt;
+                    const isStudentOpt = studentAns === opt;
+                    
+                    let bgColor = 'bg-white';
+                    let borderColor = 'border-[#141414]/10';
+                    let textColor = 'text-[#141414]';
+
+                    if (isCorrectOpt) {
+                      bgColor = 'bg-emerald-50';
+                      borderColor = 'border-emerald-500';
+                      textColor = 'text-emerald-700';
+                    } else if (isStudentOpt && !isCorrect) {
+                      bgColor = 'bg-red-50';
+                      borderColor = 'border-red-500';
+                      textColor = 'text-red-700';
+                    }
+
+                    return (
+                      <div key={opt} className={`p-4 rounded-xl border-2 flex items-center gap-3 ${bgColor} ${borderColor} ${textColor}`}>
+                        <span className={`w-6 h-6 rounded flex items-center justify-center font-bold uppercase text-[10px] ${isCorrectOpt ? 'bg-emerald-200' : (isStudentOpt ? 'bg-red-200' : 'bg-gray-100')}`}>
+                          {opt}
+                        </span>
+                        <span className="text-sm font-bold">{q[optKey] as string}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </motion.div>
     );
   }
@@ -311,8 +394,31 @@ export default function QuizPage() {
   const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
+  const readQuestion = () => {
+    if (!currentQuestion) return;
+    const utterance = new SpeechSynthesisUtterance(currentQuestion.question_text);
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto relative">
+      {/* Proctoring Camera Preview */}
+      {quiz.proctoring_enabled && cameraStream && (
+        <div className="fixed bottom-6 right-6 w-48 h-36 bg-[#141414] border-4 border-indigo-500 rounded-2xl overflow-hidden shadow-2xl z-50">
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            muted 
+            playsInline 
+            className="w-full h-full object-cover grayscale opacity-80"
+          />
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white animate-pulse">
+            <div className="w-1.5 h-1.5 bg-white rounded-full" />
+            Live Proctoring
+          </div>
+        </div>
+      )}
+
       <div className="space-y-8">
         <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
         <div>
@@ -378,9 +484,20 @@ export default function QuizPage() {
             className="bg-white border-2 border-[#141414] p-8 md:p-12 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] space-y-10"
           >
             <div className="flex justify-between items-start gap-4">
-              <h3 className="font-bold leading-tight text-xl">
+              <h3 className={`font-black tracking-tight leading-tight ${quiz.priority_mode === 'disability' ? 'text-4xl' : 'text-3xl'}`}>
                 {currentIdx + 1}. {currentQuestion.question_text}
               </h3>
+              {quiz.priority_mode === 'disability' && (
+                <button 
+                  type="button"
+                  onClick={readQuestion}
+                  className="p-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+                  title="Read Question"
+                >
+                  <AlertCircle size={20} />
+                  <span className="text-[10px] font-bold uppercase">Read</span>
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

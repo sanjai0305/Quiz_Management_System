@@ -21,6 +21,9 @@ export interface Quiz {
   year: number;
   department: string;
   section: 'A' | 'B' | 'Both';
+  proctoring_enabled?: boolean;
+  browser_lockdown?: boolean;
+  priority_mode?: 'none' | 'children' | 'disability';
   questions?: Question[];
 }
 
@@ -46,4 +49,5 @@ export interface Attempt {
   total_questions: number;
   attempt_date: string;
   is_malpractice?: boolean;
+  responses?: Record<number, string>; // question_id -> selected_option
 }

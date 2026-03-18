@@ -5,7 +5,7 @@ import { Users, BookOpen, Trophy, Plus, Save, Trash2, AlertCircle, Accessibility
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'safety'>('students');
   const { token, user } = useAuth();
 
   return (
@@ -20,6 +20,7 @@ export default function AdminDashboard() {
           <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
           <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
           <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
+          <TabButton active={activeTab === 'safety'} onClick={() => setActiveTab('safety')} icon={<ShieldCheck size={18} />} label="Safety & Security" />
         </div>
       </header>
 
@@ -27,8 +28,127 @@ export default function AdminDashboard() {
         {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
         {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
         {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
+        {activeTab === 'safety' && <div key="safety"><SafetyManager token={token!} /></div>}
       </AnimatePresence>
     </div>
+  );
+}
+
+function SafetyManager({ token }: { token: string }) {
+  const [settings, setSettings] = useState({
+    global_proctoring: false,
+    os_security_level: 'standard',
+    priority_access: true,
+    emergency_lockdown: false
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-xl font-bold uppercase tracking-tight">Safety & Security Protocols</h3>
+          <p className="text-[10px] font-bold uppercase opacity-40 text-indigo-600">System-wide Security Oversight</p>
+        </div>
+        <div className="flex gap-2">
+          <span className="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
+            <ShieldCheck size={12} /> System Secure
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm space-y-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+              <Camera size={24} />
+            </div>
+            <h4 className="text-lg font-black uppercase tracking-tight">Proctoring Facilities</h4>
+          </div>
+          <p className="text-xs font-medium opacity-50 leading-relaxed">
+            Enable advanced AI-driven camera proctoring to monitor student activity during assessments.
+          </p>
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+            <span className="text-xs font-bold uppercase">Camera Monitoring</span>
+            <button 
+              onClick={() => setSettings({...settings, global_proctoring: !settings.global_proctoring})}
+              className={`w-12 h-6 rounded-full transition-colors relative ${settings.global_proctoring ? 'bg-emerald-500' : 'bg-gray-300'}`}
+            >
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.global_proctoring ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm space-y-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+              <Lock size={24} />
+            </div>
+            <h4 className="text-lg font-black uppercase tracking-tight">OS Securities</h4>
+          </div>
+          <p className="text-xs font-medium opacity-50 leading-relaxed">
+            Configure operating system level security constraints for the assessment environment.
+          </p>
+          <select 
+            className="w-full p-4 bg-gray-50 border-2 border-[#141414] rounded-2xl font-bold text-xs uppercase tracking-widest"
+            value={settings.os_security_level}
+            onChange={(e) => setSettings({...settings, os_security_level: e.target.value})}
+          >
+            <option value="standard">Standard Security</option>
+            <option value="high">High Security (Lockdown)</option>
+            <option value="enterprise">Enterprise Grade</option>
+          </select>
+        </div>
+
+        <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm space-y-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
+              <Accessibility size={24} />
+            </div>
+            <h4 className="text-lg font-black uppercase tracking-tight">Priority & Accessibility</h4>
+          </div>
+          <p className="text-xs font-medium opacity-50 leading-relaxed">
+            Manage priority access and specialized accommodations for children and persons with disabilities.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-[#141414]/5">
+              <span className="text-xs font-bold uppercase">Priority Scheduling</span>
+              <button 
+                onClick={() => setSettings({...settings, priority_access: !settings.priority_access})}
+                className={`w-12 h-6 rounded-full transition-colors relative ${settings.priority_access ? 'bg-emerald-500' : 'bg-gray-300'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.priority_access ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+            <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+              <p className="text-[10px] font-black uppercase text-indigo-600 mb-1">Active Accommodations</p>
+              <div className="flex gap-2">
+                <span className="bg-white px-2 py-1 rounded border border-indigo-200 text-[8px] font-bold uppercase">Extra Time</span>
+                <span className="bg-white px-2 py-1 rounded border border-indigo-200 text-[8px] font-bold uppercase">Simplified UI</span>
+                <span className="bg-white px-2 py-1 rounded border border-indigo-200 text-[8px] font-bold uppercase">Voice Assist</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-red-50 border-2 border-red-500 p-8 rounded-[2.5rem] shadow-brutal-sm space-y-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+              <AlertCircle size={24} />
+            </div>
+            <h4 className="text-lg font-black uppercase tracking-tight text-red-700">Emergency Lockdown</h4>
+          </div>
+          <p className="text-xs font-medium text-red-600/60 leading-relaxed">
+            Immediately suspend all active assessments and lock the system in case of a security breach.
+          </p>
+          <button 
+            onClick={() => setSettings({...settings, emergency_lockdown: !settings.emergency_lockdown})}
+            className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all ${settings.emergency_lockdown ? 'bg-red-600 text-white' : 'bg-white text-red-600 border-2 border-red-600 hover:bg-red-600 hover:text-white'}`}
+          >
+            {settings.emergency_lockdown ? 'SYSTEM LOCKED' : 'INITIATE LOCKDOWN'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -684,6 +804,9 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     year: 1,
     department: 'AIML',
     section: 'Both' as 'A' | 'B' | 'Both',
+    proctoring_enabled: false,
+    browser_lockdown: false,
+    priority_mode: 'none' as 'none' | 'children' | 'disability',
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
   const [showBulk, setShowBulk] = useState(false);
@@ -708,6 +831,9 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           year: data.year,
           department: data.department || 'AIML',
           section: data.section || 'Both',
+          proctoring_enabled: !!data.proctoring_enabled,
+          browser_lockdown: !!data.browser_lockdown,
+          priority_mode: data.priority_mode || 'none',
           questions: data.questions.map((q: any) => ({
             text: q.question_text,
             a: q.option_a,
@@ -857,6 +983,50 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 <option value="B">Section B</option>
                 <option value="Both">Both Sections</option>
               </select>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 p-6 rounded-3xl border-2 border-[#141414] space-y-6">
+            <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Safety & Security Settings</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="flex items-center justify-between p-3 bg-white border border-[#141414]/10 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <Camera size={16} className="text-indigo-600" />
+                  <span className="text-[10px] font-bold uppercase">Proctoring</span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setQuizData({...quizData, proctoring_enabled: !quizData.proctoring_enabled})}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${quizData.proctoring_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${quizData.proctoring_enabled ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white border border-[#141414]/10 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <Lock size={16} className="text-amber-600" />
+                  <span className="text-[10px] font-bold uppercase">Lockdown</span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setQuizData({...quizData, browser_lockdown: !quizData.browser_lockdown})}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${quizData.browser_lockdown ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${quizData.browser_lockdown ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-bold uppercase opacity-40">Priority Mode</label>
+                <select 
+                  className="w-full p-2 bg-white border border-[#141414]/10 rounded-xl text-[10px] font-bold uppercase"
+                  value={quizData.priority_mode}
+                  onChange={(e) => setQuizData({...quizData, priority_mode: e.target.value as any})}
+                >
+                  <option value="none">None</option>
+                  <option value="children">Children</option>
+                  <option value="disability">Disability</option>
+                </select>
+              </div>
             </div>
           </div>
 

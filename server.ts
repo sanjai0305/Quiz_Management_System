@@ -174,7 +174,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, proctoring_enabled, browser_lockdown, priority_mode, questions } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -187,6 +187,9 @@ async function startServer() {
         year: year || 1, 
         department: department || 'AIML',
         section: section || 'Both',
+        proctoring_enabled: !!proctoring_enabled,
+        browser_lockdown: !!browser_lockdown,
+        priority_mode: priority_mode || 'none',
         created_by: (req as any).user.id 
       }])
       .select()
@@ -213,13 +216,24 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, proctoring_enabled, browser_lockdown, priority_mode, questions } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
     const { error: quizError } = await supabase
       .from('quizzes')
-      .update({ title, subject, time_limit, question_timer: question_timer || 0, year: year || 1, department: department || 'AIML', section: section || 'Both' })
+      .update({ 
+        title, 
+        subject, 
+        time_limit, 
+        question_timer: question_timer || 0, 
+        year: year || 1, 
+        department: department || 'AIML', 
+        section: section || 'Both',
+        proctoring_enabled: !!proctoring_enabled,
+        browser_lockdown: !!browser_lockdown,
+        priority_mode: priority_mode || 'none'
+      })
       .eq('id', quizId);
 
     if (quizError) return res.status(500).json({ error: quizError.message });
@@ -316,7 +330,7 @@ async function startServer() {
 
   // Attempts & Results
   app.post('/api/attempts', authenticateToken, async (req, res) => {
-    const { quiz_id, score, total_questions, is_malpractice } = req.body;
+    const { quiz_id, score, total_questions, is_malpractice, responses } = req.body;
     const student_id = (req as any).user.id;
 
     // Check if already attempted
@@ -338,7 +352,8 @@ async function startServer() {
         quiz_id, 
         score, 
         total_questions,
-        is_malpractice: !!is_malpractice
+        is_malpractice: !!is_malpractice,
+        responses: responses || {}
       }]);
 
     if (error) return res.status(500).json({ error: error.message });
@@ -425,6 +440,7 @@ async function startServer() {
         total_questions,
         attempt_date,
         is_malpractice,
+        responses,
         quizzes:quiz_id (title)
       `)
       .eq('student_id', Number(userId))
@@ -446,7 +462,8 @@ async function startServer() {
       score: a.score,
       total_questions: a.total_questions,
       attempt_date: a.attempt_date,
-      is_malpractice: a.is_malpractice
+      is_malpractice: a.is_malpractice,
+      responses: a.responses
     }));
 
     res.json(formatted);
