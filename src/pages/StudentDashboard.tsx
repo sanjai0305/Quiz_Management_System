@@ -248,7 +248,7 @@ export default function StudentDashboard() {
         <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
-              <ShieldCheck size={20} />
+              <BookOpen size={20} />
             </div>
             <h4 className="text-xs font-bold uppercase tracking-widest">Department</h4>
           </div>
@@ -315,7 +315,7 @@ export default function StudentDashboard() {
                             }`}
                           >
                             {isAttempted(quiz.id) ? (
-                              <>Completed <ShieldCheck size={16} /></>
+                              <>Completed <CheckCircle2 size={16} /></>
                             ) : (
                               <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
                             )}
@@ -403,11 +403,7 @@ export default function StudentDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
-                        {res.is_malpractice ? (
-                          <p className="text-[10px] font-bold text-red-600 uppercase">Malpractice</p>
-                        ) : (
-                          <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
-                        )}
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
                       </div>
                     </div>
                     <button 

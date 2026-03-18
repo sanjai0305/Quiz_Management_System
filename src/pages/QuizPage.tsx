@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
-import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Send, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function QuizPage() {
@@ -18,9 +18,6 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [alerts, setAlerts] = useState<string[]>([]);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
 
@@ -90,31 +87,7 @@ export default function QuizPage() {
         
         // Base time
         let baseTime = data.time_limit * 60;
-        
-        // Priority Mode: Disability (50% extra time)
-        if (data.priority_mode === 'disability') {
-          baseTime = Math.floor(baseTime * 1.5);
-        }
-        
         setTimeLeft(baseTime);
-
-        // Proctoring: Camera Access
-        if (data.proctoring_enabled) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            setCameraStream(stream);
-            // Wait for next tick to ensure videoRef is available
-            setTimeout(() => {
-              if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-              }
-            }, 100);
-          } catch (err) {
-            console.error('Camera access denied:', err);
-            alert('Camera access is required for this proctored assessment.');
-            navigate('/student');
-          }
-        }
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
       } catch (err) {
@@ -126,15 +99,7 @@ export default function QuizPage() {
     };
 
     if (token && id) checkAttemptAndFetchQuiz();
-
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [id, token, navigate, cameraStream]);
-
-  // Accessibility: Text to Speech
+  }, [id, token, navigate]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -147,74 +112,6 @@ export default function QuizPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quiz, showResult]);
 
-  // Proctoring: Tab Visibility & Focus Check
-  useEffect(() => {
-    const handleViolation = () => {
-      if (!showResult && !isSubmitting) {
-        handleSubmit(true);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleViolation();
-      }
-    };
-
-    const handleBlur = () => {
-      handleViolation();
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
-    
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!showResult && !isSubmitting) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [showResult, isSubmitting, quiz]);
-
-  // Main Quiz Timer
-  useEffect(() => {
-    if (timeLeft > 0 && !showResult && quiz) {
-      const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-      return () => clearInterval(timer);
-    } else if (timeLeft === 0 && quiz && !showResult) {
-      handleSubmit();
-    }
-  }, [timeLeft, quiz, showResult]);
-
-  // Per-Question Timer
-  useEffect(() => {
-    if (quiz?.question_timer && quiz.question_timer > 0 && !showResult) {
-      const qTimer = setInterval(() => {
-        setQuestionTimeLeft(prev => {
-          if (prev <= 1) {
-            // Time up for this question
-            if (currentIdx < (quiz.questions?.length || 0) - 1) {
-              setCurrentIdx(c => c + 1);
-              return quiz.question_timer || 0;
-            } else {
-              handleSubmit();
-              return 0;
-            }
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(qTimer);
-    }
-  }, [quiz, currentIdx, showResult]);
-
   // Reset question timer when manually changing questions
   useEffect(() => {
     if (quiz?.question_timer && quiz.question_timer > 0) {
@@ -222,11 +119,8 @@ export default function QuizPage() {
     }
   }, [currentIdx, quiz?.question_timer]);
 
-  const handleSubmit = async (isMalpractice: any = false) => {
+  const handleSubmit = async () => {
     if (!quiz || !quiz.questions || isSubmitting) return;
-    
-    // Ensure isMalpractice is a boolean (prevents issues if called directly from onClick)
-    const malpracticeFlag = typeof isMalpractice === 'boolean' ? isMalpractice : false;
     
     setIsSubmitting(true);
 
@@ -244,17 +138,13 @@ export default function QuizPage() {
         },
         body: JSON.stringify({
           quiz_id: quiz.id,
-          score: malpracticeFlag ? 0 : correctCount,
+          score: correctCount,
           total_questions: quiz.questions.length,
-          is_malpractice: malpracticeFlag,
           responses: answers
         })
       });
-      setScore(malpracticeFlag ? 0 : correctCount);
+      setScore(correctCount);
       setShowResult(true);
-      if (malpracticeFlag) {
-        setAlerts(prev => [...prev, "CRITICAL: Assessment terminated due to malpractice (tab switching/blur detected)."]);
-      }
     } catch (err) {
       console.error('Failed to submit quiz:', err);
     } finally {
@@ -394,31 +284,8 @@ export default function QuizPage() {
   const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
-  const readQuestion = () => {
-    if (!currentQuestion) return;
-    const utterance = new SpeechSynthesisUtterance(currentQuestion.question_text);
-    window.speechSynthesis.speak(utterance);
-  };
-
   return (
     <div className="max-w-6xl mx-auto relative">
-      {/* Proctoring Camera Preview */}
-      {quiz.proctoring_enabled && cameraStream && (
-        <div className="fixed bottom-6 right-6 w-48 h-36 bg-[#141414] border-4 border-indigo-500 rounded-2xl overflow-hidden shadow-2xl z-50">
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            muted 
-            playsInline 
-            className="w-full h-full object-cover grayscale opacity-80"
-          />
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white animate-pulse">
-            <div className="w-1.5 h-1.5 bg-white rounded-full" />
-            Live Proctoring
-          </div>
-        </div>
-      )}
-
       <div className="space-y-8">
         <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
         <div>
@@ -484,20 +351,9 @@ export default function QuizPage() {
             className="bg-white border-2 border-[#141414] p-8 md:p-12 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] space-y-10"
           >
             <div className="flex justify-between items-start gap-4">
-              <h3 className={`font-black tracking-tight leading-tight ${quiz.priority_mode === 'disability' ? 'text-4xl' : 'text-3xl'}`}>
+              <h3 className="font-black tracking-tight leading-tight text-3xl">
                 {currentIdx + 1}. {currentQuestion.question_text}
               </h3>
-              {quiz.priority_mode === 'disability' && (
-                <button 
-                  type="button"
-                  onClick={readQuestion}
-                  className="p-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
-                  title="Read Question"
-                >
-                  <AlertCircle size={20} />
-                  <span className="text-[10px] font-bold uppercase">Read</span>
-                </button>
-              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -548,7 +404,7 @@ export default function QuizPage() {
 
         {currentIdx === (quiz.questions?.length || 0) - 1 ? (
           <button 
-            onClick={() => handleSubmit(false)}
+            onClick={() => handleSubmit()}
             disabled={isSubmitting}
             className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,0.3)]"
           >
@@ -563,20 +419,6 @@ export default function QuizPage() {
           </button>
         )}
       </footer>
-
-      {alerts.length > 0 && (
-        <div className="mt-8 bg-red-50 border-2 border-red-200 p-6 rounded-3xl space-y-3">
-          <div className="flex items-center gap-2 text-red-600">
-            <AlertCircle size={20} />
-            <span className="text-xs font-black uppercase tracking-widest">Security Alerts</span>
-          </div>
-          <div className="space-y-2">
-            {alerts.slice(-3).map((alert, i) => (
-              <p key={i} className="text-sm text-red-700 font-bold leading-tight">• {alert}</p>
-            ))}
-          </div>
-        </div>
-      )}
       </div>
     </div>
   );
