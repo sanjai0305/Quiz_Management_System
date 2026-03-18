@@ -302,9 +302,10 @@ async function startServer() {
   });
 
   app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
+    // Fetch quiz first
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
-      .select('*, admins(email)')
+      .select('*')
       .eq('id', req.params.id)
       .single();
     
@@ -315,15 +316,25 @@ async function startServer() {
       return res.status(500).json({ error: quizError.message });
     }
 
+    // Fetch questions
     const { data: questions, error: qError } = await supabase
       .from('questions')
       .select('*')
       .eq('quiz_id', req.params.id);
 
     if (qError) return res.status(500).json({ error: qError.message });
+
+    // Fetch admin email separately to avoid join errors
+    let adminEmail = null;
+    if (quiz.created_by) {
+      const { data: adminData } = await supabase
+        .from('admins')
+        .select('email')
+        .eq('id', quiz.created_by)
+        .single();
+      adminEmail = adminData?.email;
+    }
     
-    // Flatten admin email
-    const adminEmail = (quiz as any).admins?.email;
     res.json({ ...quiz, questions, admin_email: adminEmail });
   });
 
@@ -344,7 +355,7 @@ async function startServer() {
       return res.status(400).json({ error: 'You have already attempted this quiz.' });
     }
 
-    const { error } = await supabase
+    const { error: insertError } = await supabase
       .from('attempts')
       .insert([{ 
         student_id, 
@@ -354,7 +365,47 @@ async function startServer() {
         responses: responses || {}
       }]);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (insertError) return res.status(500).json({ error: insertError.message });
+
+    // Check if the whole class has completed the quiz
+    try {
+      // Get current student's group
+      const { data: student } = await supabase
+        .from('students')
+        .select('year, department, section')
+        .eq('id', student_id)
+        .single();
+
+      if (student) {
+        // Count total students in this group
+        const { count: totalStudents } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .eq('year', student.year)
+          .eq('department', student.department)
+          .eq('section', student.section);
+
+        // Count attempts for this quiz from this group
+        const { count: totalAttempts } = await supabase
+          .from('attempts')
+          .select('*, students!inner(*)', { count: 'exact', head: true })
+          .eq('quiz_id', quiz_id)
+          .eq('students.year', student.year)
+          .eq('students.department', student.department)
+          .eq('students.section', student.section);
+
+        const isClassCompleted = totalStudents !== null && totalAttempts !== null && totalAttempts >= totalStudents;
+        
+        return res.json({ 
+          success: true, 
+          classCompleted: isClassCompleted,
+          completedGroup: `${student.year} Year - ${student.department} - Section ${student.section}`
+        });
+      }
+    } catch (err) {
+      console.error('Error checking class completion:', err);
+    }
+
     res.json({ success: true });
   });
 

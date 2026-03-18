@@ -145,7 +145,7 @@ export default function QuizPage() {
     });
 
     try {
-      await fetch('/api/attempts', {
+      const response = await fetch('/api/attempts', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -159,6 +159,8 @@ export default function QuizPage() {
         })
       });
 
+      const attemptResult = await response.json();
+
       // Send Email Notification to Admin
       const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
       const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
@@ -167,37 +169,28 @@ export default function QuizPage() {
       // Use the admin email from the quiz object if available, fallback to env
       const adminEmail = (quiz as any).admin_email || import.meta.env.VITE_ADMIN_EMAIL;
 
-      console.log('EmailJS Debug:', { 
-        hasServiceId: !!serviceId, 
-        hasTemplateId: !!templateId, 
-        hasPublicKey: !!publicKey, 
-        adminEmail 
-      });
-
       if (serviceId && templateId && publicKey && adminEmail) {
-        const templateParams = {
-          admin_email: adminEmail,
-          student_name: user?.name || 'Unknown Student',
-          student_email: user?.email || 'Unknown Email',
-          student_dept: (user as any)?.department || 'N/A',
-          student_section: (user as any)?.section || 'N/A',
-          quiz_title: quiz.title,
-          score: correctCount,
-          total_questions: quiz.questions.length,
-          completion_date: new Date().toLocaleString()
-        };
+        // Only send email if the whole class has finished
+        if (attemptResult.classCompleted) {
+          const templateParams = {
+            admin_email: adminEmail,
+            quiz_title: quiz.title,
+            completed_group: attemptResult.completedGroup,
+            completion_date: new Date().toLocaleString(),
+            message: `ALL STUDENTS from ${attemptResult.completedGroup} have successfully completed the assessment: "${quiz.title}".`
+          };
 
-        console.log('Sending Email with params:', templateParams);
-
-        emailjs.send(serviceId, templateId, templateParams, publicKey)
-          .then((response) => {
-            console.log('SUCCESS! Admin notified:', response.status, response.text);
-          })
-          .catch((err) => {
-            console.error('FAILED to send email:', err);
+          emailjs.send(
+            serviceId,
+            templateId,
+            templateParams,
+            publicKey
+          ).then(() => {
+            console.log('Class completion notification sent to admin');
+          }).catch((err) => {
+            console.error('EmailJS Error:', err);
           });
-      } else {
-        console.warn('Email not sent: Missing configuration or Admin Email');
+        }
       }
 
       setScore(correctCount);
