@@ -98,7 +98,7 @@ export default function QuizPage() {
     };
 
     if (token && id) checkAttemptAndFetchQuiz();
-  }, [id, token, navigate, user?.is_priority]);
+  }, [id, token, navigate]);
 
   // Accessibility: Text to Speech
 

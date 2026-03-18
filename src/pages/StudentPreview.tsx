@@ -128,22 +128,6 @@ export default function StudentPreview() {
               </div>
             </div>
           </div>
-          <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
-                <Accessibility size={20} />
-              </div>
-              <h4 className="text-xs font-bold uppercase tracking-widest">Priority Mode</h4>
-            </div>
-            <p className="text-sm font-black uppercase">
-              {student.priority_type === 'child' ? 'Child Mode' : 
-               student.priority_type === 'disability' ? 'Disability Support' : 
-               'Standard Mode'}
-            </p>
-            <p className="text-[10px] font-medium opacity-50 uppercase mt-1">
-              {student.is_priority ? 'Enhanced Time Active' : 'Standard Time'}
-            </p>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">

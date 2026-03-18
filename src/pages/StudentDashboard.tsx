@@ -42,17 +42,31 @@ export default function StudentDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
+    if (token) fetchData();
   }, [token]);
 
   const isAttempted = (quizId: number | string) => {
-    return Array.isArray(results) && results.some(r => r.quiz_id.toString() === quizId.toString());
+    if (!Array.isArray(results)) return false;
+    const attempted = results.some(r => {
+      const match = r.quiz_id.toString() === quizId.toString();
+      return match;
+    });
+    return attempted;
   };
 
   const handleStartQuiz = (quiz: Quiz) => {
     if (isAttempted(quiz.id)) return;
     navigate(`/quiz/${quiz.id}`);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-black uppercase tracking-widest opacity-40">Verifying Academic Records...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-12">

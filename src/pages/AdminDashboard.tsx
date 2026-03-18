@@ -426,8 +426,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     department: 'AIML',
     profile_picture: '',
     year: 1,
-    section: 'A' as 'A' | 'B',
-    priority_type: 'none' as 'none' | 'child' | 'disability'
+    section: 'A' as 'A' | 'B'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -548,18 +547,6 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                 >
                   <option value="A">Section A</option>
                   <option value="B">Section B</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Mode</label>
-                <select 
-                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                  value={formData.priority_type}
-                  onChange={e => setFormData({...formData, priority_type: e.target.value as any, is_priority: e.target.value !== 'none'})}
-                >
-                  <option value="none">Standard</option>
-                  <option value="child">Child (Simplified UI)</option>
-                  <option value="disability">Disability (Enhanced Support)</option>
                 </select>
               </div>
             </div>

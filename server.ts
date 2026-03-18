@@ -119,7 +119,7 @@ async function startServer() {
 
   // Student Management (Admin)
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section, is_priority, priority_type } = req.body;
+    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -131,12 +131,15 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
-        is_priority: !!is_priority,
-        priority_type: priority_type || 'none',
         created_by: (req as any).user.id
       }]);
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'A student with this registration number already exists.' });
+      }
+      return res.status(400).json({ error: error.message });
+    }
     res.json({ success: true });
   });
 
@@ -403,6 +406,12 @@ async function startServer() {
   });
 
   app.get('/api/student/results', authenticateToken, async (req, res) => {
+    const userId = (req as any).user.id;
+    
+    if (!userId || isNaN(Number(userId))) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const { data: results, error } = await supabase
       .from('attempts')
       .select(`
@@ -411,12 +420,20 @@ async function startServer() {
         total_questions,
         attempt_date,
         is_malpractice,
-        quizzes (title)
+        quizzes:quiz_id (title)
       `)
-      .eq('student_id', (req as any).user.id)
+      .eq('student_id', Number(userId))
       .order('attempt_date', { ascending: false });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('Supabase Error Details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      return res.status(500).json({ error: error.message });
+    }
 
     const formatted = (results || []).map((a: any) => ({
       quiz_id: a.quiz_id,
@@ -454,15 +471,15 @@ async function startServer() {
         total_questions,
         attempt_date,
         is_malpractice,
-        quizzes (title)
+        quizzes:quiz_id (title)
       `)
       .eq('student_id', req.params.id)
       .order('attempt_date', { ascending: false });
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const formatted = results.map((a: any) => ({
-      title: a.quizzes.title,
+    const formatted = (results || []).map((a: any) => ({
+      title: a.quizzes?.title || 'Unknown Quiz',
       score: a.score,
       total_questions: a.total_questions,
       attempt_date: a.attempt_date,

@@ -10,8 +10,6 @@ export interface User {
   section?: 'A' | 'B';
   profile_picture?: string;
   year?: number;
-  is_priority?: boolean;
-  priority_type?: 'none' | 'child' | 'disability';
 }
 
 export interface Quiz {
