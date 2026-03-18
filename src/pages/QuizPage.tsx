@@ -121,14 +121,19 @@ export default function QuizPage() {
     }
   }, [currentIdx, quiz?.question_timer]);
 
-  const handleSubmit = async () => {
+  const answersRef = useRef(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  const handleSubmit = useCallback(async () => {
     if (!quiz || !quiz.questions || isSubmitting) return;
     
     setIsSubmitting(true);
 
     let correctCount = 0;
     quiz.questions.forEach(q => {
-      if (answers[q.id] === q.correct_answer) correctCount++;
+      if (answersRef.current[q.id] === q.correct_answer) correctCount++;
     });
 
     try {
@@ -142,7 +147,7 @@ export default function QuizPage() {
           quiz_id: quiz.id,
           score: correctCount,
           total_questions: quiz.questions.length,
-          responses: answers
+          responses: answersRef.current
         })
       });
       setScore(correctCount);
@@ -152,7 +157,40 @@ export default function QuizPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [quiz, isSubmitting, token]);
+
+  // Main Quiz Timer
+  useEffect(() => {
+    if (showResult || loading || showAlreadyAttempted || !quiz) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+
+      if (quiz.question_timer && quiz.question_timer > 0) {
+        setQuestionTimeLeft(prev => {
+          if (prev <= 1) {
+            if (currentIdx < (quiz.questions?.length || 0) - 1) {
+              setCurrentIdx(c => c + 1);
+              return quiz.question_timer || 0;
+            } else {
+              handleSubmit();
+              return 0;
+            }
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showResult, loading, showAlreadyAttempted, quiz, currentIdx, handleSubmit]);
 
   if (loading) {
     return (
