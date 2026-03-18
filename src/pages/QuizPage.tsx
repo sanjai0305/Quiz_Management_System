@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
-import { Clock, ChevronLeft, ChevronRight, Send, Loader2 } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function QuizPage() {
@@ -68,17 +68,19 @@ export default function QuizPage() {
               [options[i], options[j]] = [options[j], options[i]];
             }
 
-            // Find the new key for the correct answer
-            const newCorrectIdx = options.findIndex(opt => opt.id === q.correct_answer);
-            const newCorrectKey = ['a', 'b', 'c', 'd'][newCorrectIdx];
-
             return {
               ...q,
               option_a: options[0].text,
               option_b: options[1].text,
               option_c: options[2].text,
               option_d: options[3].text,
-              correct_answer: newCorrectKey
+              // Map shuffled position to original key
+              option_mapping: {
+                a: options[0].id,
+                b: options[1].id,
+                c: options[2].id,
+                d: options[3].id
+              }
             };
           });
         }
@@ -246,8 +248,9 @@ export default function QuizPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {['a', 'b', 'c', 'd'].map(opt => {
                     const optKey = `option_${opt}` as keyof Question;
-                    const isCorrectOpt = q.correct_answer === opt;
-                    const isStudentOpt = studentAns === opt;
+                    const originalKey = q.option_mapping?.[opt] || opt;
+                    const isCorrectOpt = q.correct_answer === originalKey;
+                    const isStudentOpt = studentAns === originalKey;
                     
                     let bgColor = 'bg-white';
                     let borderColor = 'border-[#141414]/10';
@@ -359,11 +362,12 @@ export default function QuizPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {['a', 'b', 'c', 'd'].map(opt => {
                 const optKey = `option_${opt}` as keyof Question;
-                const isSelected = answers[currentQuestion.id] === opt;
+                const originalKey = currentQuestion.option_mapping?.[opt] || opt;
+                const isSelected = answers[currentQuestion.id] === originalKey;
                 return (
                   <button
                     key={opt}
-                    onClick={() => setAnswers({ ...answers, [currentQuestion.id]: opt })}
+                    onClick={() => setAnswers({ ...answers, [currentQuestion.id]: originalKey })}
                     className={`p-6 text-left rounded-2xl border-2 transition-all flex items-center gap-4 group ${
                       isSelected 
                         ? 'bg-[#141414] border-[#141414] text-white shadow-[4px_4px_0px_0px_rgba(79,70,229,0.4)]' 

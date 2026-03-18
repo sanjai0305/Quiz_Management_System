@@ -33,6 +33,7 @@ export interface Question {
   option_c: string;
   option_d: string;
   correct_answer: string;
+  option_mapping?: Record<string, string>; // Shuffled key -> original key
 }
 
 export interface Attempt {
