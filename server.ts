@@ -298,7 +298,12 @@ async function startServer() {
       .eq('id', req.params.id)
       .single();
     
-    if (quizError) return res.status(500).json({ error: quizError.message });
+    if (quizError) {
+      if (quizError.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Quiz not found' });
+      }
+      return res.status(500).json({ error: quizError.message });
+    }
 
     const { data: questions, error: qError } = await supabase
       .from('questions')
