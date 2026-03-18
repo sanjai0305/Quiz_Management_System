@@ -167,27 +167,37 @@ export default function QuizPage() {
       // Use the admin email from the quiz object if available, fallback to env
       const adminEmail = (quiz as any).admin_email || import.meta.env.VITE_ADMIN_EMAIL;
 
+      console.log('EmailJS Debug:', { 
+        hasServiceId: !!serviceId, 
+        hasTemplateId: !!templateId, 
+        hasPublicKey: !!publicKey, 
+        adminEmail 
+      });
+
       if (serviceId && templateId && publicKey && adminEmail) {
-        emailjs.send(
-          serviceId,
-          templateId,
-          {
-            admin_email: adminEmail,
-            student_name: user?.name || 'Unknown Student',
-            student_email: user?.email || 'Unknown Email',
-            student_dept: (user as any)?.department || 'N/A',
-            student_section: (user as any)?.section || 'N/A',
-            quiz_title: quiz.title,
-            score: correctCount,
-            total_questions: quiz.questions.length,
-            completion_date: new Date().toLocaleString()
-          },
-          publicKey
-        ).then(() => {
-          console.log('Admin notified via EmailJS');
-        }).catch((err) => {
-          console.error('EmailJS Error:', err);
-        });
+        const templateParams = {
+          admin_email: adminEmail,
+          student_name: user?.name || 'Unknown Student',
+          student_email: user?.email || 'Unknown Email',
+          student_dept: (user as any)?.department || 'N/A',
+          student_section: (user as any)?.section || 'N/A',
+          quiz_title: quiz.title,
+          score: correctCount,
+          total_questions: quiz.questions.length,
+          completion_date: new Date().toLocaleString()
+        };
+
+        console.log('Sending Email with params:', templateParams);
+
+        emailjs.send(serviceId, templateId, templateParams, publicKey)
+          .then((response) => {
+            console.log('SUCCESS! Admin notified:', response.status, response.text);
+          })
+          .catch((err) => {
+            console.error('FAILED to send email:', err);
+          });
+      } else {
+        console.warn('Email not sent: Missing configuration or Admin Email');
       }
 
       setScore(correctCount);
