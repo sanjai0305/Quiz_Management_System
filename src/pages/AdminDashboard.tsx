@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -402,13 +402,7 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                       <p className="font-bold text-sm uppercase tracking-tight">Quiz ID: {attempt.quiz_id}</p>
                       <p className="text-[10px] opacity-40 uppercase font-bold">{new Date(attempt.attempt_date).toLocaleDateString()}</p>
                     </div>
-                    <div className="text-right flex items-center gap-4">
-                      {attempt.malpractice_count && attempt.malpractice_count > 0 && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl border border-red-100">
-                          <AlertCircle size={12} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">{attempt.malpractice_count} SECURITY ALERTS</span>
-                        </div>
-                      )}
+                    <div className="text-right">
                       <div>
                         <p className="font-black text-lg text-indigo-600">{attempt.score}</p>
                         <p className="text-[10px] font-bold uppercase opacity-30">Score</p>
@@ -604,6 +598,37 @@ function QuizManager({ token }: { token: string }) {
     }
   };
 
+  const [testEmail, setTestEmail] = useState('');
+  const [isTestingSMTP, setIsTestingSMTP] = useState(false);
+
+  const handleTestSMTP = async () => {
+    if (!testEmail) {
+      alert('Please enter a test email address');
+      return;
+    }
+    setIsTestingSMTP(true);
+    try {
+      const response = await fetch('/api/admin/test-smtp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ testEmail })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+      } else {
+        alert('SMTP test failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      alert('Network error while testing SMTP');
+    } finally {
+      setIsTestingSMTP(false);
+    }
+  };
+
   useEffect(() => { 
     fetchQuizzes(); 
     fetchStudents();
@@ -611,33 +636,78 @@ function QuizManager({ token }: { token: string }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+      {/* Reports & Settings Section */}
+      <div className="bg-white border-2 border-[#141414] p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-8">
+        <div className="flex items-center gap-2 mb-6">
+          <FileText className="w-5 h-5 text-indigo-600" />
+          <h3 className="text-lg font-bold uppercase tracking-tight">Reports & Email Settings</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Manual Report Trigger */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Manual Report Generation</h4>
+            <p className="text-[10px] font-medium opacity-60">
+              Generate and email reports for all quizzes scheduled on a specific date.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
+                  if (!date) return;
+                  
+                  const res = await fetch('/api/admin/trigger-report', {
+                    method: 'POST',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ date })
+                  });
+                  const data = await res.json();
+                  if (res.ok) {
+                    alert('Reports sent successfully to admin emails!');
+                  } else {
+                    alert('Error: ' + data.error);
+                  }
+                }}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 border-2 border-[#141414] shadow-brutal-sm flex items-center justify-center gap-2"
+              >
+                <Mail size={16} /> Send Reports
+              </button>
+            </div>
+          </div>
+
+          {/* SMTP Test */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Test Email Configuration</h4>
+            <p className="text-[10px] font-medium opacity-60">
+              Verify your SMTP settings by sending a test email. Make sure SMTP environment variables are set.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="Test email address"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                className="flex-1 px-4 py-2 bg-slate-50 border-2 border-[#141414] rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={handleTestSMTP}
+                disabled={isTestingSMTP}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 border-2 border-[#141414] shadow-brutal-sm flex items-center gap-2"
+              >
+                <Send size={16} />
+                {isTestingSMTP ? 'Testing...' : 'Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h3 className="text-xl font-bold uppercase tracking-tight">Curriculum & Quizzes</h3>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={async () => {
-              const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
-              if (!date) return;
-              
-              const res = await fetch('/api/admin/trigger-report', {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ date })
-              });
-              const data = await res.json();
-              if (res.ok) {
-                alert('Reports sent successfully to admin emails!');
-              } else {
-                alert('Error: ' + data.error);
-              }
-            }}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all border-2 border-[#141414] shadow-brutal-sm"
-          >
-            <FileSpreadsheet size={16} /> Daily Report
-          </button>
           <button onClick={() => setShowAdd(true)} className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all border-2 border-[#141414] shadow-brutal-sm">
             <Plus size={16} /> Create Quiz
           </button>
@@ -950,59 +1020,6 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 value={quizData.scheduled_time} 
                 onChange={e => setQuizData({...quizData, scheduled_time: e.target.value})} 
               />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-6 bg-gray-50 border-2 border-[#141414]/10 rounded-3xl">
-            <div className="flex items-center gap-3">
-              <input 
-                type="checkbox" 
-                id="is_proctored"
-                className="w-5 h-5 border-2 border-[#141414] rounded accent-[#141414]" 
-                checked={quizData.is_proctored}
-                onChange={e => setQuizData({...quizData, is_proctored: e.target.checked})}
-              />
-              <label htmlFor="is_proctored" className="text-xs font-bold uppercase tracking-tight flex items-center gap-2">
-                <Eye size={16} className="text-indigo-600" /> Camera Proctoring
-              </label>
-            </div>
-            <div className="flex items-center gap-3">
-              <input 
-                type="checkbox" 
-                id="strict_mode"
-                className="w-5 h-5 border-2 border-[#141414] rounded accent-[#141414]" 
-                checked={quizData.strict_mode}
-                onChange={e => setQuizData({...quizData, strict_mode: e.target.checked})}
-              />
-              <label htmlFor="strict_mode" className="text-xs font-bold uppercase tracking-tight flex items-center gap-2">
-                <ShieldCheck size={16} className="text-red-600" /> Strict OS Mode
-              </label>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
-              <select 
-                className="w-full p-2 border-2 border-[#141414] rounded-xl font-bold text-[10px] uppercase"
-                value={quizData.priority_category}
-                onChange={e => setQuizData({...quizData, priority_category: e.target.value as any})}
-              >
-                <option value="Normal">Normal</option>
-                <option value="Children">Children</option>
-                <option value="Disability Person">Disability Person</option>
-                <option value="Senior">Senior</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Stage Level</label>
-              <select 
-                className="w-full p-2 border-2 border-[#141414] rounded-xl font-bold text-[10px] uppercase"
-                value={quizData.stage_level}
-                onChange={e => setQuizData({...quizData, stage_level: parseInt(e.target.value) || 1})}
-              >
-                <option value={1}>Stage 1 (Initial)</option>
-                <option value={2}>Stage 2 (Intermediate)</option>
-                <option value={3}>Stage 3 (Advanced)</option>
-                <option value={4}>Stage 4 (Final)</option>
-              </select>
             </div>
           </div>
 

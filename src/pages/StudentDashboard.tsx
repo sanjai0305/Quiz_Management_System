@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { Quiz, Attempt, Question } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, CheckCircle2, XCircle } from 'lucide-react';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -289,39 +289,37 @@ export default function StudentDashboard() {
                       <div className="h-px flex-1 bg-indigo-200" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {yearQuizzes.map(quiz => (
-                        <motion.div 
-                          key={quiz.id} 
-                          whileHover={{ y: -5 }}
-                          className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                              <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
-                                {quiz.department}
-                              </span>
-                              <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
-                                Sec: {quiz.section}
-                              </span>
-                              {quiz.priority_category && quiz.priority_category !== 'Normal' && (
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
-                                  {quiz.priority_category}
+                      {yearQuizzes.map(quiz => {
+                        const attempted = isAttempted(quiz.id);
+                        return (
+                          <motion.div 
+                            key={quiz.id} 
+                            whileHover={{ y: -5 }}
+                            className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
+                                  {quiz.department}
                                 </span>
-                              )}
-                              {quiz.stage_level && (
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-purple-50 text-purple-600 border-purple-100">
-                                  Stage {quiz.stage_level}
+                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
+                                  Sec: {quiz.section}
                                 </span>
-                              )}
-                              <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
-                            </div>
-                            <h4 className="font-bold text-xl mb-2">{quiz.title}</h4>
-                            <div className="flex flex-col gap-2 mb-6">
-                              <div className="flex items-center gap-4 text-xs opacity-50">
-                                <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
-                                <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
+                                <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
                               </div>
-                              {quiz.scheduled_at && (
+                              <h4 className="font-bold text-xl mb-2">{quiz.title}</h4>
+                              <div className="flex flex-col gap-2 mb-6">
+                                <div className="flex items-center gap-4 text-xs opacity-50">
+                                  <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
+                                  <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
+                                </div>
+                                {attempted && (
+                                  <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 w-fit">
+                                    <AlertCircle size={14} />
+                                    Completed
+                                  </div>
+                                )}
+                                {quiz.scheduled_at && !attempted && (
                                 <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${new Date(quiz.scheduled_at) > now ? 'text-indigo-600' : 'text-emerald-600'}`}>
                                   <Clock size={12} />
                                   {(() => {
@@ -367,8 +365,9 @@ export default function StudentDashboard() {
                               </button>
                             );
                           })()}
-                        </motion.div>
-                      ))}
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

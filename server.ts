@@ -313,11 +313,28 @@ async function startServer() {
   });
 
   app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
+    const user = (req as any).user;
+    const quizId = req.params.id;
+
+    // If student, check if already attempted
+    if (user.role === 'student') {
+      const { data: existingAttempt } = await supabase
+        .from('attempts')
+        .select('id')
+        .eq('student_id', user.id)
+        .eq('quiz_id', quizId)
+        .maybeSingle();
+      
+      if (existingAttempt) {
+        return res.status(403).json({ error: 'You have already attempted this quiz.' });
+      }
+    }
+
     // Fetch quiz first
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
       .select('*')
-      .eq('id', req.params.id)
+      .eq('id', quizId)
       .single();
     
     if (quizError) {
@@ -586,6 +603,8 @@ async function startServer() {
     const { date } = req.body; // YYYY-MM-DD
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    console.log(`Manual report triggered for date: ${targetDate} by admin: ${(req as any).user.id}`);
+
     try {
       const { data: quizzes, error: quizError } = await supabase
         .from('quizzes')
@@ -595,10 +614,14 @@ async function startServer() {
 
       if (quizError) throw quizError;
       if (!quizzes || quizzes.length === 0) {
-        return res.status(404).json({ error: `No quizzes found for ${targetDate}` });
+        return res.status(404).json({ error: `No quizzes found for ${targetDate}. Make sure the quiz has a scheduled date set.` });
       }
 
+      let reportsSent = 0;
       for (const quiz of quizzes) {
+        // ... (rest of the logic remains same, just adding more logging)
+        console.log(`Generating report for quiz: ${quiz.title} (ID: ${quiz.id})`);
+        
         let studentQuery = supabase
           .from('students')
           .select('id, name, registration_number, year, department, section')
@@ -649,7 +672,14 @@ async function startServer() {
           if (adminData?.email) adminEmail = adminData.email;
         }
 
-        if (!adminEmail) continue;
+        if (!adminEmail) {
+          console.warn(`No admin email found for quiz ${quiz.id}, skipping.`);
+          continue;
+        }
+
+        if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+          throw new Error('SMTP credentials are not configured in environment variables.');
+        }
 
         const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -673,12 +703,51 @@ async function startServer() {
             }
           ]
         });
+        reportsSent++;
       }
 
-      res.json({ success: true, message: `Reports sent for ${targetDate}` });
+      res.json({ success: true, message: `Successfully sent ${reportsSent} reports for ${targetDate}` });
     } catch (err: any) {
       console.error('Error triggering manual report:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: err.message || 'Failed to send reports. Check SMTP configuration.' });
+    }
+  });
+
+  // SMTP Test Endpoint
+  app.post('/api/admin/test-smtp', authenticateToken, async (req, res) => {
+    if ((req as any).user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
+    
+    const { testEmail } = req.body;
+    if (!testEmail) return res.status(400).json({ error: 'Test email address is required' });
+
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return res.status(400).json({ error: 'SMTP_USER and SMTP_PASS environment variables are missing.' });
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      await transporter.verify();
+      
+      await transporter.sendMail({
+        from: `"Quiz System Test" <${process.env.SMTP_USER}>`,
+        to: testEmail,
+        subject: 'SMTP Configuration Test',
+        text: 'If you are reading this, your SMTP configuration for the Quiz System is working correctly!'
+      });
+
+      res.json({ success: true, message: 'Test email sent successfully!' });
+    } catch (err: any) {
+      console.error('SMTP Test Error:', err);
+      res.status(500).json({ error: err.message || 'SMTP connection failed' });
     }
   });
 
