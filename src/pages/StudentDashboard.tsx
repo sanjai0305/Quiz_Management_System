@@ -146,6 +146,7 @@ export default function StudentDashboard() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
+  const [now, setNow] = useState(new Date());
   const { token, user } = useAuth();
   const navigate = useNavigate();
 
@@ -180,6 +181,11 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (token) fetchData();
   }, [token]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const isAttempted = (quizId: number | string) => {
     if (!Array.isArray(results)) return false;
@@ -306,15 +312,27 @@ export default function StudentDashboard() {
                                 <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
                               </div>
                               {quiz.scheduled_at && (
-                                <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${new Date(quiz.scheduled_at) > new Date() ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                                <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${new Date(quiz.scheduled_at) > now ? 'text-indigo-600' : 'text-emerald-600'}`}>
                                   <Clock size={12} />
-                                  {new Date(quiz.scheduled_at) > new Date() ? `Starts: ${new Date(quiz.scheduled_at).toLocaleString()}` : 'Quiz is Live'}
+                                  {(() => {
+                                    const scheduledTime = new Date(quiz.scheduled_at);
+                                    if (scheduledTime > now) {
+                                      const diff = scheduledTime.getTime() - now.getTime();
+                                      const hours = Math.floor(diff / (1000 * 60 * 60));
+                                      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                                      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                                      
+                                      if (hours > 24) return `Starts: ${scheduledTime.toLocaleString()}`;
+                                      return `Starts in: ${hours > 0 ? hours + 'h ' : ''}${minutes}m ${seconds}s`;
+                                    }
+                                    return 'Quiz is Live';
+                                  })()}
                                 </div>
                               )}
                             </div>
                           </div>
                           {(() => {
-                            const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > new Date();
+                            const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > now;
                             const attempted = isAttempted(quiz.id);
                             
                             return (
