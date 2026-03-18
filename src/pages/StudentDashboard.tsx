@@ -174,12 +174,12 @@ export default function StudentDashboard() {
                             disabled={isAttempted(quiz.id)}
                             className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
                               isAttempted(quiz.id) 
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-dashed border-gray-200' 
+                                ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-not-allowed' 
                                 : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
                             }`}
                           >
                             {isAttempted(quiz.id) ? (
-                              <>Attempted <ShieldCheck size={16} /></>
+                              <>Completed <ShieldCheck size={16} /></>
                             ) : (
                               <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
                             )}

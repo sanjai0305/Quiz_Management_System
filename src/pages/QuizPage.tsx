@@ -20,6 +20,8 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<string[]>([]);
 
+  const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
+
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
       try {
@@ -31,8 +33,8 @@ export default function QuizPage() {
         const attempted = Array.isArray(results) && results.some((r: any) => r.quiz_id.toString() === id?.toString());
         
         if (attempted) {
-          alert('You have already attempted this quiz.');
-          navigate('/student');
+          setShowAlreadyAttempted(true);
+          setLoading(false);
           return;
         }
 
@@ -234,6 +236,30 @@ export default function QuizPage() {
           <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mx-auto" />
           <p className="text-xs font-black uppercase tracking-widest opacity-40">Loading Assessment...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (showAlreadyAttempted) {
+    return (
+      <div className="min-h-screen bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-sm rounded-3xl p-8 text-center space-y-6">
+          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+            <AlertCircle size={32} />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold uppercase tracking-tight">Already Attempted</h3>
+            <p className="text-xs opacity-50 mt-2 font-medium leading-relaxed">
+              You have already completed this assessment. Each quiz can only be taken once.
+            </p>
+          </div>
+          <button 
+            onClick={() => navigate('/student')}
+            className="w-full py-4 bg-[#141414] text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[#2a2a2a] transition-all"
+          >
+            Return to Dashboard
+          </button>
+        </motion.div>
       </div>
     );
   }
