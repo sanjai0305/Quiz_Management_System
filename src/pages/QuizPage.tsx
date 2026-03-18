@@ -4,6 +4,7 @@ import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import emailjs from '@emailjs/browser';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -157,6 +158,38 @@ export default function QuizPage() {
           responses: answersRef.current
         })
       });
+
+      // Send Email Notification to Admin
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+      
+      // Use the admin email from the quiz object if available, fallback to env
+      const adminEmail = (quiz as any).admin_email || import.meta.env.VITE_ADMIN_EMAIL;
+
+      if (serviceId && templateId && publicKey && adminEmail) {
+        emailjs.send(
+          serviceId,
+          templateId,
+          {
+            admin_email: adminEmail,
+            student_name: user?.name || 'Unknown Student',
+            student_email: user?.email || 'Unknown Email',
+            student_dept: (user as any)?.department || 'N/A',
+            student_section: (user as any)?.section || 'N/A',
+            quiz_title: quiz.title,
+            score: correctCount,
+            total_questions: quiz.questions.length,
+            completion_date: new Date().toLocaleString()
+          },
+          publicKey
+        ).then(() => {
+          console.log('Admin notified via EmailJS');
+        }).catch((err) => {
+          console.error('EmailJS Error:', err);
+        });
+      }
+
       setScore(correctCount);
       setShowResult(true);
     } catch (err) {

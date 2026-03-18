@@ -304,7 +304,7 @@ async function startServer() {
   app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
-      .select('*')
+      .select('*, admins(email)')
       .eq('id', req.params.id)
       .single();
     
@@ -321,7 +321,10 @@ async function startServer() {
       .eq('quiz_id', req.params.id);
 
     if (qError) return res.status(500).json({ error: qError.message });
-    res.json({ ...quiz, questions });
+    
+    // Flatten admin email
+    const adminEmail = (quiz as any).admins?.email;
+    res.json({ ...quiz, questions, admin_email: adminEmail });
   });
 
   // Attempts & Results
