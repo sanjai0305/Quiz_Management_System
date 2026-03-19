@@ -544,13 +544,52 @@ export default function QuizPage() {
             </div>
           </div>
 
-          <div className="pt-8">
+          <div className="pt-8 flex flex-col gap-4">
             <button 
               onClick={() => navigate('/student')}
               className="bg-[#141414] text-white px-8 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all"
             >
               Return to Dashboard
             </button>
+          </div>
+
+          <div className="mt-12 text-left space-y-8">
+            <h3 className="text-2xl font-black uppercase tracking-tight border-b-4 border-[#141414] pb-2">Review Answers</h3>
+            <div className="space-y-6">
+              {quiz.questions?.map((q, idx) => {
+                const studentAns = answers[q.id];
+                const isCorrect = studentAns === q.correct_answer;
+                return (
+                  <div key={q.id} className={`p-6 rounded-3xl border-2 ${isCorrect ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                    <div className="flex justify-between items-start gap-4 mb-4">
+                      <p className="font-bold">{idx + 1}. {q.question_text}</p>
+                      {isCorrect ? (
+                        <span className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded">Correct</span>
+                      ) : (
+                        <span className="bg-red-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded">Incorrect</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {['a', 'b', 'c', 'd'].map(opt => {
+                        const optKey = `option_${opt}` as keyof Question;
+                        const isCorrectOpt = opt === q.correct_answer;
+                        const isStudentOpt = opt === studentAns;
+                        return (
+                          <div key={opt} className={`p-3 rounded-xl text-xs font-medium border ${
+                            isCorrectOpt ? 'bg-emerald-100 border-emerald-200 text-emerald-800' :
+                            isStudentOpt ? 'bg-red-100 border-red-200 text-red-800' :
+                            'bg-white border-gray-100 opacity-50'
+                          }`}>
+                            <span className="font-bold uppercase mr-2">{opt}:</span>
+                            {q[optKey] as string}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </motion.div>

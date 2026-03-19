@@ -11,6 +11,7 @@ export default function StudentDashboard() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
+  const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
 
@@ -318,7 +319,12 @@ export default function StudentDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-xl">{res.score}<span className="text-xs opacity-30">/{res.total_questions}</span></p>
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase">Completed</p>
+                        <button 
+                          onClick={() => setSelectedAttempt(res)}
+                          className="text-[10px] font-bold text-indigo-600 uppercase hover:underline"
+                        >
+                          See Answers
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -343,6 +349,71 @@ export default function StudentDashboard() {
       </div>
 
       <AnimatePresence>
+        {selectedAttempt && (
+          <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center bg-gray-50">
+                <div>
+                  <h3 className="text-xl font-bold uppercase tracking-tight">{selectedAttempt.title}</h3>
+                  <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Score: {selectedAttempt.score}/{selectedAttempt.total_questions}</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedAttempt(null)}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-6">
+                {selectedAttempt.questions?.map((q: any, idx: number) => {
+                  const studentAns = selectedAttempt.responses[q.id];
+                  const isCorrect = studentAns === q.correct_answer;
+                  
+                  return (
+                    <div key={q.id} className={`p-6 rounded-2xl border-2 ${isCorrect ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                      <div className="flex justify-between items-start gap-4 mb-4">
+                        <p className="font-bold text-sm">{idx + 1}. {q.question_text}</p>
+                        {isCorrect ? (
+                          <span className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded">Correct</span>
+                        ) : (
+                          <span className="bg-red-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded">Incorrect</span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {['a', 'b', 'c', 'd'].map(opt => {
+                          const optKey = `option_${opt}` as keyof Question;
+                          const isCorrectOpt = opt === q.correct_answer;
+                          const isStudentOpt = opt === studentAns;
+                          
+                          return (
+                            <div 
+                              key={opt}
+                              className={`p-3 rounded-xl text-xs font-medium border ${
+                                isCorrectOpt ? 'bg-emerald-100 border-emerald-200 text-emerald-800' :
+                                isStudentOpt ? 'bg-red-100 border-red-200 text-red-800' :
+                                'bg-white border-gray-100 opacity-50'
+                              }`}
+                            >
+                              <span className="font-bold uppercase mr-2">{opt}:</span>
+                              {q[optKey] as string}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
