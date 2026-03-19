@@ -568,18 +568,6 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                   <option value="B">Section B</option>
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Type</label>
-                <select 
-                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
-                  value={formData.priority_type || 'Normal'}
-                  onChange={e => setFormData({...formData, priority_type: e.target.value as any})}
-                >
-                  <option value="Normal">Normal</option>
-                  <option value="Children">Children</option>
-                  <option value="Disability">Disability</option>
-                </select>
-              </div>
             </div>
           </div>
 

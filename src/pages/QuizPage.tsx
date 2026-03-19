@@ -115,12 +115,7 @@ export default function QuizPage() {
 
         setQuiz(data);
         
-        // Base time with priority accommodations
-        let baseTime = data.time_limit * 60;
-        if (user?.priority_type === 'Children') baseTime *= 1.5;
-        if (user?.priority_type === 'Disability') baseTime *= 2;
-        
-        setTimeLeft(baseTime);
+        setTimeLeft(data.time_limit * 60);
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
         
@@ -488,16 +483,6 @@ export default function QuizPage() {
               <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Your Status</h3>
               <div className="space-y-2">
                 <p className="text-sm font-bold">Student: <span className="text-indigo-600">{user?.name}</span></p>
-                {user?.priority_type && user.priority_type !== 'Normal' && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase bg-indigo-600 text-white px-2 py-0.5 rounded">
-                      {user.priority_type} Accommodation
-                    </span>
-                    <p className="text-[10px] font-bold text-indigo-600 italic">
-                      {user.priority_type === 'Children' ? '+50% Extra Time' : '+100% Extra Time'}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

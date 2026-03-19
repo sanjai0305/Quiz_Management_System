@@ -164,7 +164,7 @@ async function startServer() {
 
   // Student Management (Admin)
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section, priority_type } = req.body;
+    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -176,7 +176,6 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
-        priority_type: priority_type || 'normal',
         created_by: (req as any).user.id
       }]);
 

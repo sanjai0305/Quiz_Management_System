@@ -92,11 +92,6 @@ export default function StudentDashboard() {
           <h2 className="text-4xl font-black tracking-tighter">STUDENT PORTAL</h2>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-sm font-medium uppercase tracking-widest opacity-50">Academic Dashboard • Welcome, {user?.name}</p>
-            {user?.priority_type && user.priority_type !== 'Normal' && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-amber-200">
-                {user.priority_type}
-              </span>
-            )}
             {user?.year && (
               <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
                 {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
