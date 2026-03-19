@@ -398,9 +398,25 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
               <div className="space-y-3">
                 {attempts.map((attempt, idx) => (
                   <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 border border-[#141414]/5 rounded-2xl">
-                    <div>
-                      <p className="font-bold text-sm uppercase tracking-tight">Quiz ID: {attempt.quiz_id}</p>
-                      <p className="text-[10px] opacity-40 uppercase font-bold">{new Date(attempt.attempt_date).toLocaleDateString()}</p>
+                    <div className="flex items-center gap-4">
+                      {attempt.verification_photo && (
+                        <img 
+                          src={attempt.verification_photo} 
+                          alt="Verification" 
+                          className="w-10 h-10 rounded-lg object-cover border border-[#141414]/10"
+                        />
+                      )}
+                      <div>
+                        <p className="font-bold text-sm uppercase tracking-tight">Quiz ID: {attempt.quiz_id}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] opacity-40 uppercase font-bold">{new Date(attempt.attempt_date).toLocaleDateString()}</p>
+                          {attempt.malpractice_count !== undefined && attempt.malpractice_count > 0 && (
+                            <span className="text-[9px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase">
+                              {attempt.malpractice_count} Malpractice
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="text-right">
                       <div>
@@ -428,7 +444,8 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     department: 'AIML',
     profile_picture: '',
     year: 1,
-    section: 'A' as 'A' | 'B'
+    section: 'A' as 'A' | 'B',
+    priority_type: 'Normal' as 'Normal' | 'Children' | 'Disability'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -549,6 +566,18 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                 >
                   <option value="A">Section A</option>
                   <option value="B">Section B</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Type</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.priority_type || 'Normal'}
+                  onChange={e => setFormData({...formData, priority_type: e.target.value as any})}
+                >
+                  <option value="Normal">Normal</option>
+                  <option value="Children">Children</option>
+                  <option value="Disability">Disability</option>
                 </select>
               </div>
             </div>
@@ -1001,6 +1030,20 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 <option value="A">Section A</option>
                 <option value="B">Section B</option>
                 <option value="Both">Both Sections</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Proctored</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.is_proctored ? 'true' : 'false'} onChange={e => setQuizData({...quizData, is_proctored: e.target.value === 'true'})}>
+                <option value="false">No</option>
+                <option value="true">Yes (Camera)</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Strict Mode</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.strict_mode ? 'true' : 'false'} onChange={e => setQuizData({...quizData, strict_mode: e.target.value === 'true'})}>
+                <option value="false">No</option>
+                <option value="true">Yes (Tab Lock)</option>
               </select>
             </div>
             <div className="space-y-1">

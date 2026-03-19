@@ -122,7 +122,7 @@ async function startServer() {
 
   // Student Management (Admin)
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
+    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section, priority_type } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -134,6 +134,7 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
+        priority_type: priority_type || 'Normal',
         created_by: (req as any).user.id
       }]);
 
@@ -368,7 +369,7 @@ async function startServer() {
 
   // Attempts & Results
   app.post('/api/attempts', authenticateToken, async (req, res) => {
-    const { quiz_id, score, total_questions, responses, malpractice_count } = req.body;
+    const { quiz_id, score, total_questions, responses, malpractice_count, security_log, verification_photo } = req.body;
     const student_id = (req as any).user.id;
 
     // Check if already attempted
@@ -391,7 +392,9 @@ async function startServer() {
         score, 
         total_questions,
         responses: responses || {},
-        malpractice_count: malpractice_count || 0
+        malpractice_count: malpractice_count || 0,
+        security_log: security_log || [],
+        verification_photo: verification_photo || null
       }]);
 
     if (insertError) return res.status(500).json({ error: insertError.message });

@@ -19,8 +19,19 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [stage, setStage] = useState<'loading' | 'verification' | 'instructions' | 'quiz' | 'result'>('loading');
+  const [malpracticeCount, setMalpracticeCount] = useState(0);
+  const [securityLog, setSecurityLog] = useState<{ event: string; timestamp: string }[]>([]);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
+
+  const logSecurityEvent = useCallback((event: string) => {
+    setSecurityLog(prev => [...prev, { event, timestamp: new Date().toISOString() }]);
+    setMalpracticeCount(prev => prev + 1);
+  }, []);
 
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
@@ -104,9 +115,24 @@ export default function QuizPage() {
         
         // Base time
         let baseTime = data.time_limit * 60;
+        
+        // Priority Accommodations
+        if (user?.priority_type === 'Children') {
+          baseTime = Math.floor(baseTime * 1.5);
+        } else if (user?.priority_type === 'Disability') {
+          baseTime = Math.floor(baseTime * 2.0);
+        }
+
         setTimeLeft(baseTime);
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
+        
+        // Set initial stage
+        if (data.is_proctored) {
+          setStage('verification');
+        } else {
+          setStage('instructions');
+        }
       } catch (err) {
         console.error(err);
         navigate('/student');
@@ -116,7 +142,76 @@ export default function QuizPage() {
     };
 
     if (token && id) checkAttemptAndFetchQuiz();
-  }, [id, token, navigate]);
+  }, [id, token, navigate, user?.priority_type]);
+
+  // OS Securities
+  useEffect(() => {
+    if (stage !== 'quiz' || !quiz?.strict_mode) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        logSecurityEvent('Tab Switched / Minimized');
+      }
+    };
+
+    const handleBlur = () => {
+      logSecurityEvent('Window Focus Lost');
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      logSecurityEvent('Right Click Attempted');
+    };
+
+    const handleCopyPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      logSecurityEvent('Copy/Paste Attempted');
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('copy', handleCopyPaste);
+    window.addEventListener('paste', handleCopyPaste);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('copy', handleCopyPaste);
+      window.removeEventListener('paste', handleCopyPaste);
+    };
+  }, [stage, quiz?.strict_mode, logSecurityEvent]);
+
+  // Camera logic
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Camera access denied:', err);
+      alert('Camera access is required for this proctored quiz.');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        const photo = canvasRef.current.toDataURL('image/jpeg');
+        setCapturedPhoto(photo);
+        
+        // Stop camera
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    }
+  };
 
   const answersRef = useRef(answers);
   useEffect(() => {
@@ -144,7 +239,10 @@ export default function QuizPage() {
             quiz_id: quiz.id,
             score: correctCount,
             total_questions: quiz.questions.length,
-            responses: answersRef.current
+            responses: answersRef.current,
+            malpractice_count: malpracticeCount,
+            security_log: securityLog,
+            verification_photo: capturedPhoto
           })
       });
 
@@ -208,7 +306,7 @@ export default function QuizPage() {
 
   // Main Quiz Timer
   useEffect(() => {
-    if (showResult || loading || showAlreadyAttempted || !quiz) return;
+    if (showResult || loading || showAlreadyAttempted || !quiz || stage !== 'quiz') return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -237,7 +335,7 @@ export default function QuizPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showResult, loading, showAlreadyAttempted, quiz, currentIdx, handleSubmit]);
+  }, [showResult, loading, showAlreadyAttempted, quiz, currentIdx, handleSubmit, stage]);
 
   if (loading) {
     return (
@@ -276,6 +374,80 @@ export default function QuizPage() {
               Return to Dashboard
             </button>
           </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (stage === 'verification') {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-md w-full space-y-6">
+          <h2 className="text-2xl font-black uppercase">Identity Verification</h2>
+          <p className="text-sm font-bold opacity-60">This quiz is proctored. Please verify your identity using the camera.</p>
+          
+          <div className="aspect-video bg-gray-100 border-4 border-[#141414] rounded-2xl overflow-hidden relative">
+            {!capturedPhoto ? (
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            ) : (
+              <img src={capturedPhoto} alt="Verification" className="w-full h-full object-cover" />
+            )}
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+
+          {!capturedPhoto ? (
+            <div className="flex gap-4">
+              <button onClick={startCamera} className="flex-1 py-3 bg-indigo-600 text-white font-bold border-2 border-[#141414]">Start Camera</button>
+              <button onClick={capturePhoto} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Capture</button>
+            </div>
+          ) : (
+            <div className="flex gap-4">
+              <button onClick={() => setCapturedPhoto(null)} className="flex-1 py-3 border-2 border-[#141414] font-bold">Retake</button>
+              <button onClick={() => setStage('instructions')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Continue</button>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (stage === 'instructions') {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-2xl w-full space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-black uppercase tracking-tight">{quiz?.title}</h1>
+            <p className="text-lg font-bold opacity-60">{quiz?.subject}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 bg-gray-50 border-2 border-[#141414] rounded-2xl space-y-4">
+              <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Quiz Rules</h3>
+              <ul className="space-y-3 text-sm font-bold">
+                <li className="flex items-center gap-2"><Clock size={16} /> Total Time: {Math.floor(timeLeft / 60)} minutes</li>
+                {quiz?.question_timer && quiz.question_timer > 0 && <li className="flex items-center gap-2"><Clock size={16} /> Per Question: {quiz.question_timer} seconds</li>}
+                {quiz?.strict_mode && <li className="flex items-center gap-2 text-red-600"><AlertCircle size={16} /> Strict Mode: Tab switching is prohibited</li>}
+                {quiz?.is_proctored && <li className="flex items-center gap-2 text-indigo-600"><AlertCircle size={16} /> Proctored: Camera monitoring active</li>}
+              </ul>
+            </div>
+
+            <div className="p-6 bg-indigo-50 border-2 border-[#141414] rounded-2xl space-y-4">
+              <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Your Status</h3>
+              <div className="space-y-2">
+                <p className="text-sm font-bold">Category: <span className="text-indigo-600">{user?.priority_type || 'Normal'}</span></p>
+                {user?.priority_type !== 'Normal' && (
+                  <p className="text-xs font-bold text-green-600">Extra time has been applied based on your category.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setStage('quiz')}
+            className="w-full py-4 bg-[#141414] text-white font-black uppercase tracking-widest border-4 border-[#141414] hover:bg-white hover:text-[#141414] transition-all"
+          >
+            Start Quiz Now
+          </button>
         </motion.div>
       </div>
     );

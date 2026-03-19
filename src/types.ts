@@ -10,6 +10,7 @@ export interface User {
   section?: 'A' | 'B';
   profile_picture?: string;
   year?: number;
+  priority_type?: 'Normal' | 'Children' | 'Disability';
 }
 
 export interface Quiz {
@@ -52,5 +53,6 @@ export interface Attempt {
   total_questions: number;
   attempt_date: string;
   malpractice_count?: number;
+  verification_photo?: string;
   responses?: Record<number, string>; // question_id -> selected_option
 }

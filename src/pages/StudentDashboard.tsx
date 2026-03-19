@@ -232,6 +232,11 @@ export default function StudentDashboard() {
                 {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
               </span>
             )}
+            {user?.priority_type && user.priority_type !== 'Normal' && (
+              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-amber-200">
+                {user.priority_type} Priority
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -294,8 +299,8 @@ export default function StudentDashboard() {
                         return (
                           <motion.div 
                             key={quiz.id} 
-                            whileHover={{ y: -5 }}
-                            className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between"
+                            whileHover={!attempted ? { y: -5 } : {}}
+                            className={`bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between ${attempted ? 'opacity-75 grayscale-[0.5]' : ''}`}
                           >
                             <div>
                               <div className="flex items-center gap-2 mb-3">
@@ -315,8 +320,8 @@ export default function StudentDashboard() {
                                 </div>
                                 {attempted && (
                                   <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 w-fit">
-                                    <AlertCircle size={14} />
-                                    Completed
+                                    <ShieldCheck size={14} />
+                                    Attempt Locked
                                   </div>
                                 )}
                                 {quiz.scheduled_at && !attempted && (
@@ -349,14 +354,14 @@ export default function StudentDashboard() {
                                 disabled={attempted || isScheduled}
                                 className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
                                   attempted 
-                                    ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-not-allowed' 
+                                    ? 'bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed' 
                                     : isScheduled
                                     ? 'bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed'
                                     : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
                                 }`}
                               >
                                 {attempted ? (
-                                  <>Completed <CheckCircle2 size={16} /></>
+                                  <>Locked <ShieldCheck size={16} /></>
                                 ) : isScheduled ? (
                                   <>Not Started <Clock size={16} /></>
                                 ) : (
