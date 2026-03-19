@@ -18,6 +18,48 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-mini-project';
 
+// Email Transporter Setup
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+async function sendCompletionEmail(adminEmail: string, quizTitle: string, groupInfo: string) {
+  if (!process.env.SMTP_USER || !adminEmail) return;
+
+  try {
+    await transporter.sendMail({
+      from: `"Quiz Platform" <${process.env.SMTP_USER}>`,
+      to: adminEmail,
+      subject: `Quiz Completion: ${quizTitle}`,
+      text: `All students from ${groupInfo} have completed the quiz: ${quizTitle}. You can now review the results in your dashboard.`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; border: 4px solid #141414; border-radius: 20px;">
+          <h2 style="text-transform: uppercase; font-weight: 900;">Quiz Completion Alert</h2>
+          <p>Hello Admin,</p>
+          <p>This is to notify you that <strong>all students</strong> from the following group have completed their assessment:</p>
+          <div style="background: #f3f4f6; padding: 15px; border-radius: 10px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Quiz:</strong> ${quizTitle}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Group:</strong> ${groupInfo}</p>
+          </div>
+          <p>You can now log in to the portal to review the scores and security logs.</p>
+          <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #666;">
+            Sent by Quiz Platform Automated System
+          </div>
+        </div>
+      `,
+    });
+    console.log(`Completion email sent to ${adminEmail}`);
+  } catch (err) {
+    console.error('Failed to send completion email:', err);
+  }
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
@@ -428,6 +470,28 @@ async function startServer() {
 
         const isClassCompleted = totalStudents !== null && totalAttempts !== null && totalAttempts >= totalStudents;
         
+        if (isClassCompleted) {
+          // Fetch quiz title and admin email
+          const { data: quiz } = await supabase
+            .from('quizzes')
+            .select('title, created_by')
+            .eq('id', quiz_id)
+            .single();
+          
+          if (quiz && quiz.created_by) {
+            const { data: admin } = await supabase
+              .from('admins')
+              .select('email')
+              .eq('id', quiz.created_by)
+              .single();
+            
+            if (admin?.email) {
+              const groupInfo = `${student.year} Year - ${student.department} - Section ${student.section}`;
+              sendCompletionEmail(admin.email, quiz.title, groupInfo);
+            }
+          }
+        }
+
         return res.json({ 
           success: true, 
           classCompleted: isClassCompleted,
