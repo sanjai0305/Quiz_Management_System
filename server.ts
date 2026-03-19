@@ -176,7 +176,7 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
-        priority_type: priority_type || 'Normal',
+        priority_type: priority_type || 'normal',
         created_by: (req as any).user.id
       }]);
 
@@ -220,7 +220,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, priority_category, stage_level } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -236,7 +236,6 @@ async function startServer() {
         scheduled_at: scheduled_at || null,
         is_proctored: is_proctored || false,
         strict_mode: strict_mode || false,
-        priority_category: priority_category || 'Normal',
         stage_level: stage_level || 1,
         created_by: (req as any).user.id 
       }])
@@ -264,7 +263,7 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, priority_category, stage_level } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
@@ -281,7 +280,6 @@ async function startServer() {
         scheduled_at: scheduled_at || null,
         is_proctored: is_proctored || false,
         strict_mode: strict_mode || false,
-        priority_category: priority_category || 'Normal',
         stage_level: stage_level || 1
       })
       .eq('id', quizId);
@@ -358,20 +356,6 @@ async function startServer() {
   app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
     const user = (req as any).user;
     const quizId = req.params.id;
-
-    // If student, check if already attempted
-    if (user.role === 'student') {
-      const { data: existingAttempt } = await supabase
-        .from('attempts')
-        .select('id')
-        .eq('student_id', user.id)
-        .eq('quiz_id', quizId)
-        .maybeSingle();
-      
-      if (existingAttempt) {
-        return res.status(403).json({ error: 'You have already attempted this quiz.' });
-      }
-    }
 
     // Fetch quiz first
     const { data: quiz, error: quizError } = await supabase

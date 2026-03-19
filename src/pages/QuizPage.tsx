@@ -19,12 +19,14 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [stage, setStage] = useState<'loading' | 'verification' | 'instructions' | 'quiz' | 'result'>('loading');
+  const [stage, setStage] = useState<'loading' | 'verification' | 'security_check' | 'instructions' | 'quiz' | 'result'>('loading');
   const [malpracticeCount, setMalpracticeCount] = useState(0);
   const [securityLog, setSecurityLog] = useState<{ event: string; timestamp: string }[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [environmentPhoto, setEnvironmentPhoto] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
 
@@ -113,16 +115,11 @@ export default function QuizPage() {
 
         setQuiz(data);
         
-        // Base time
+        // Base time with priority accommodations
         let baseTime = data.time_limit * 60;
+        if (user?.priority_type === 'Children') baseTime *= 1.5;
+        if (user?.priority_type === 'Disability') baseTime *= 2;
         
-        // Priority Accommodations
-        if (user?.priority_type === 'Children') {
-          baseTime = Math.floor(baseTime * 1.5);
-        } else if (user?.priority_type === 'Disability') {
-          baseTime = Math.floor(baseTime * 2.0);
-        }
-
         setTimeLeft(baseTime);
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
@@ -383,8 +380,11 @@ export default function QuizPage() {
     return (
       <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-md w-full space-y-6">
-          <h2 className="text-2xl font-black uppercase">Identity Verification</h2>
-          <p className="text-sm font-bold opacity-60">This quiz is proctored. Please verify your identity using the camera.</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black uppercase">Stage 1: Identity</h2>
+            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-1 rounded">SECURE</span>
+          </div>
+          <p className="text-sm font-bold opacity-60">Please verify your identity using the camera for proctoring.</p>
           
           <div className="aspect-video bg-gray-100 border-4 border-[#141414] rounded-2xl overflow-hidden relative">
             {!capturedPhoto ? (
@@ -403,8 +403,61 @@ export default function QuizPage() {
           ) : (
             <div className="flex gap-4">
               <button onClick={() => setCapturedPhoto(null)} className="flex-1 py-3 border-2 border-[#141414] font-bold">Retake</button>
-              <button onClick={() => setStage('instructions')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Continue</button>
+              <button onClick={() => setStage('security_check')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Next Stage</button>
             </div>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (stage === 'security_check') {
+    const enterFullScreen = () => {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      }
+      setIsFullScreen(true);
+    };
+
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-md w-full space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black uppercase">Stage 2: OS Security</h2>
+            <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded">STRICT</span>
+          </div>
+          <p className="text-sm font-bold opacity-60">To ensure a fair assessment, we need to lock your browser environment.</p>
+          
+          <div className="space-y-4 p-6 bg-red-50 border-2 border-red-200 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="text-red-600 mt-1 shrink-0" size={20} />
+              <div className="space-y-1">
+                <p className="text-xs font-black uppercase text-red-600">Strict Mode Protocol</p>
+                <ul className="text-[10px] font-bold text-red-700 space-y-1 list-disc pl-4">
+                  <li>Fullscreen mode will be enabled</li>
+                  <li>Tab switching is strictly prohibited</li>
+                  <li>Right-click and Copy/Paste are disabled</li>
+                  <li>Any violation will be logged automatically</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {!isFullScreen ? (
+            <button 
+              onClick={enterFullScreen}
+              className="w-full py-4 bg-red-600 text-white font-black uppercase tracking-widest border-4 border-[#141414] hover:bg-red-700 transition-all"
+            >
+              Enable Secure Mode
+            </button>
+          ) : (
+            <button 
+              onClick={() => setStage('instructions')}
+              className="w-full py-4 bg-[#141414] text-white font-black uppercase tracking-widest border-4 border-[#141414] hover:bg-gray-800 transition-all"
+            >
+              Continue to Instructions
+            </button>
           )}
         </motion.div>
       </div>
@@ -434,9 +487,16 @@ export default function QuizPage() {
             <div className="p-6 bg-indigo-50 border-2 border-[#141414] rounded-2xl space-y-4">
               <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Your Status</h3>
               <div className="space-y-2">
-                <p className="text-sm font-bold">Category: <span className="text-indigo-600">{user?.priority_type || 'Normal'}</span></p>
-                {user?.priority_type !== 'Normal' && (
-                  <p className="text-xs font-bold text-green-600">Extra time has been applied based on your category.</p>
+                <p className="text-sm font-bold">Student: <span className="text-indigo-600">{user?.name}</span></p>
+                {user?.priority_type && user.priority_type !== 'Normal' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase bg-indigo-600 text-white px-2 py-0.5 rounded">
+                      {user.priority_type} Accommodation
+                    </span>
+                    <p className="text-[10px] font-bold text-indigo-600 italic">
+                      {user.priority_type === 'Children' ? '+50% Extra Time' : '+100% Extra Time'}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -492,57 +552,6 @@ export default function QuizPage() {
               Return to Dashboard
             </button>
           </div>
-        </div>
-
-        <div className="space-y-6">
-          <h3 className="text-2xl font-black uppercase tracking-tight">Review Answers</h3>
-          {quiz.questions?.map((q, idx) => {
-            const studentAns = answers[q.id];
-            const isCorrect = studentAns === q.correct_answer;
-            return (
-              <div key={q.id} className={`bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] space-y-4 ${isCorrect ? 'border-emerald-500' : 'border-red-500'}`}>
-                <div className="flex justify-between items-start gap-4">
-                  <h4 className="font-bold text-lg leading-tight">
-                    {idx + 1}. {q.question_text}
-                  </h4>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                    {isCorrect ? 'Correct' : 'Incorrect'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {['a', 'b', 'c', 'd'].map(opt => {
-                    const optKey = `option_${opt}` as keyof Question;
-                    const originalKey = q.option_mapping?.[opt] || opt;
-                    const isCorrectOpt = q.correct_answer === originalKey;
-                    const isStudentOpt = studentAns === originalKey;
-                    
-                    let bgColor = 'bg-white';
-                    let borderColor = 'border-[#141414]/10';
-                    let textColor = 'text-[#141414]';
-
-                    if (isCorrectOpt) {
-                      bgColor = 'bg-emerald-50';
-                      borderColor = 'border-emerald-500';
-                      textColor = 'text-emerald-700';
-                    } else if (isStudentOpt && !isCorrect) {
-                      bgColor = 'bg-red-50';
-                      borderColor = 'border-red-500';
-                      textColor = 'text-red-700';
-                    }
-
-                    return (
-                      <div key={opt} className={`p-4 rounded-xl border-2 flex items-center gap-3 ${bgColor} ${borderColor} ${textColor}`}>
-                        <span className={`w-6 h-6 rounded flex items-center justify-center font-bold uppercase text-[10px] ${isCorrectOpt ? 'bg-emerald-200' : (isStudentOpt ? 'bg-red-200' : 'bg-gray-100')}`}>
-                          {opt}
-                        </span>
-                        <span className="text-sm font-bold">{q[optKey] as string}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </motion.div>
     );
