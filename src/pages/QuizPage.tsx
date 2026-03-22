@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Quiz, Question } from '../types';
-import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Shield, Camera, UserCheck, Layout, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import emailjs from '@emailjs/browser';
 
@@ -19,7 +19,7 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [stage, setStage] = useState<'loading' | 'verification' | 'security_check' | 'instructions' | 'quiz' | 'result'>('loading');
+  const [stage, setStage] = useState<'loading' | 'verification' | 'environment_check' | 'security_check' | 'instructions' | 'quiz' | 'result'>('loading');
   const [malpracticeCount, setMalpracticeCount] = useState(0);
   const [securityLog, setSecurityLog] = useState<{ event: string; timestamp: string }[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -27,6 +27,7 @@ export default function QuizPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [monitoringPhotos, setMonitoringPhotos] = useState<string[]>([]);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
 
@@ -115,7 +116,16 @@ export default function QuizPage() {
 
         setQuiz(data);
         
-        setTimeLeft(data.time_limit * 60);
+        let initialTime = data.time_limit * 60;
+        
+        // Priority Wise Time Adjustment
+        if (user?.priority_type === 'Disability') {
+          initialTime = Math.floor(initialTime * 1.5); // 50% extra time
+        } else if (user?.priority_type === 'Children') {
+          initialTime = Math.floor(initialTime * 1.25); // 25% extra time
+        }
+        
+        setTimeLeft(initialTime);
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
         
@@ -160,11 +170,19 @@ export default function QuizPage() {
       logSecurityEvent('Copy/Paste Attempted');
     };
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'p' || e.key === 'u')) {
+        e.preventDefault();
+        logSecurityEvent(`Keyboard Shortcut Attempted: ${e.key}`);
+      }
+    };
+
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('copy', handleCopyPaste);
     window.addEventListener('paste', handleCopyPaste);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -172,8 +190,32 @@ export default function QuizPage() {
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('copy', handleCopyPaste);
       window.removeEventListener('paste', handleCopyPaste);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [stage, quiz?.strict_mode, logSecurityEvent]);
+
+  // Periodic Monitoring Photo Capture
+  useEffect(() => {
+    if (stage !== 'quiz' || !quiz?.is_proctored) return;
+
+    const monitoringInterval = setInterval(() => {
+      if (videoRef.current && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const photo = canvas.toDataURL('image/jpeg', 0.5);
+          setMonitoringPhotos(prev => [...prev.slice(-9), photo]); // Keep last 10 photos
+          console.log('Monitoring photo captured');
+        }
+      }
+    }, 60000); // Every 1 minute
+
+    return () => clearInterval(monitoringInterval);
+  }, [stage, quiz?.is_proctored]);
 
   // Camera logic
   const startCamera = async () => {
@@ -398,6 +440,51 @@ export default function QuizPage() {
           ) : (
             <div className="flex gap-4">
               <button onClick={() => setCapturedPhoto(null)} className="flex-1 py-3 border-2 border-[#141414] font-bold">Retake</button>
+              <button onClick={() => setStage('environment_check')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Next Stage</button>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (stage === 'environment_check') {
+    const captureEnv = () => {
+      if (videoRef.current && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          setEnvironmentPhoto(canvas.toDataURL('image/jpeg'));
+        }
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-md w-full space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black uppercase">Stage 2: Environment</h2>
+            <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-2 py-1 rounded">CHECK</span>
+          </div>
+          <p className="text-sm font-bold opacity-60">Please show your surroundings to ensure a clean workspace.</p>
+          
+          <div className="aspect-video bg-gray-100 border-4 border-[#141414] rounded-2xl overflow-hidden relative">
+            {!environmentPhoto ? (
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            ) : (
+              <img src={environmentPhoto} alt="Environment" className="w-full h-full object-cover" />
+            )}
+          </div>
+
+          {!environmentPhoto ? (
+            <button onClick={captureEnv} className="w-full py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Capture Environment</button>
+          ) : (
+            <div className="flex gap-4">
+              <button onClick={() => setEnvironmentPhoto(null)} className="flex-1 py-3 border-2 border-[#141414] font-bold">Retake</button>
               <button onClick={() => setStage('security_check')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Next Stage</button>
             </div>
           )}
@@ -474,8 +561,8 @@ export default function QuizPage() {
               <ul className="space-y-3 text-sm font-bold">
                 <li className="flex items-center gap-2"><Clock size={16} /> Total Time: {Math.floor(timeLeft / 60)} minutes</li>
                 {quiz?.question_timer && quiz.question_timer > 0 && <li className="flex items-center gap-2"><Clock size={16} /> Per Question: {quiz.question_timer} seconds</li>}
-                {quiz?.strict_mode && <li className="flex items-center gap-2 text-red-600"><AlertCircle size={16} /> Strict Mode: Tab switching is prohibited</li>}
-                {quiz?.is_proctored && <li className="flex items-center gap-2 text-indigo-600"><AlertCircle size={16} /> Proctored: Camera monitoring active</li>}
+                {quiz?.strict_mode && <li className="flex items-center gap-2 text-red-600 font-black"><ShieldCheck size={16} /> OS Security: Enabled</li>}
+                {quiz?.is_proctored && <li className="flex items-center gap-2 text-indigo-600 font-black"><ShieldCheck size={16} /> Camera Monitoring: Active</li>}
               </ul>
             </div>
 
@@ -483,6 +570,15 @@ export default function QuizPage() {
               <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Your Status</h3>
               <div className="space-y-2">
                 <p className="text-sm font-bold">Student: <span className="text-indigo-600">{user?.name}</span></p>
+                {user?.priority_type && user.priority_type !== 'normal' && (
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-black uppercase border border-amber-200">
+                      {user.priority_type} Category
+                    </span>
+                    <span className="text-[10px] font-bold opacity-50 italic">Extra time applied</span>
+                  </div>
+                )}
+                <p className="text-[10px] font-bold uppercase opacity-40">Stage Level: {quiz?.stage_level || 1}</p>
               </div>
             </div>
           </div>

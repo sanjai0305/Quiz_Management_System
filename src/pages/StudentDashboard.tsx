@@ -97,6 +97,11 @@ export default function StudentDashboard() {
                 {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
               </span>
             )}
+            {user?.priority_type && user.priority_type !== 'normal' && (
+              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-amber-200">
+                {user.priority_type} Category
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -125,6 +130,39 @@ export default function StudentDashboard() {
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
           <p className="text-sm font-black uppercase">{user?.department} - Section {user?.section}</p>
+        </div>
+        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+              <ShieldCheck size={20} />
+            </div>
+            <h4 className="text-xs font-bold uppercase tracking-widest">Security & Priority</h4>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${user?.is_safety_secure ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+              Safety: {user?.is_safety_secure ? 'Secure' : 'Pending'}
+            </span>
+            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${user?.camera_facilities ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+              Camera: {user?.camera_facilities ? 'Enabled' : 'Disabled'}
+            </span>
+            <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-200">
+              Priority: {user?.priority_type || 'Normal'}
+            </span>
+          </div>
+        </div>
+        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
+              <Trophy size={20} />
+            </div>
+            <h4 className="text-xs font-bold uppercase tracking-widest">Current Stage</h4>
+          </div>
+          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Level: {user?.current_stage || 1}</p>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map(s => (
+              <div key={s} className={`h-1.5 flex-1 rounded-full ${user?.current_stage && user.current_stage >= s ? 'bg-purple-500' : 'bg-purple-100'}`} />
+            ))}
+          </div>
         </div>
       </div>
 

@@ -96,7 +96,12 @@ async function startServer() {
       .insert([{ name, email, password }])
       .select();
     
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      if (error.message.includes('unique constraint "admins_email_key"')) {
+        return res.status(400).json({ error: 'An admin with this email already exists.' });
+      }
+      return res.status(400).json({ error: error.message });
+    }
     res.json({ success: true });
   });
 
@@ -163,8 +168,40 @@ async function startServer() {
   });
 
   // Student Management (Admin)
+  app.post('/api/students/bulk', authenticateToken, async (req, res) => {
+    const { students } = req.body;
+    if (!Array.isArray(students)) return res.status(400).json({ error: 'Invalid data format' });
+
+    const studentsToInsert = students.map(s => ({
+      name: s.name,
+      registration_number: s.registration_number,
+      date_of_birth: s.date_of_birth,
+      mobile: s.mobile || '',
+      department: s.department,
+      year: s.year || 1,
+      section: s.section || 'A',
+      priority_type: s.priority_type || 'normal',
+      created_by: (req as any).user.id
+    }));
+
+    const { data, error } = await supabase
+      .from('students')
+      .insert(studentsToInsert);
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'One or more students already exist (Duplicate Registration Number).' });
+      }
+      return res.status(500).json({ error: error.message });
+    }
+    res.json({ success: true, count: studentsToInsert.length });
+  });
+
   app.post('/api/students', authenticateToken, async (req, res) => {
-    const { name, registration_number, date_of_birth, mobile, department, profile_picture, year, section } = req.body;
+    const { 
+      name, registration_number, date_of_birth, mobile, department, 
+      profile_picture, year, section, priority_type 
+    } = req.body;
     const { data, error } = await supabase
       .from('students')
       .insert([{ 
@@ -176,6 +213,7 @@ async function startServer() {
         profile_picture, 
         year: year || 1,
         section: section || 'A',
+        priority_type: priority_type || 'normal',
         created_by: (req as any).user.id
       }]);
 
@@ -190,15 +228,39 @@ async function startServer() {
 
   app.get('/api/students', authenticateToken, async (req, res) => {
     try {
-      const { data: students, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('created_by', (req as any).user.id);
+      const user = (req as any).user;
+      console.log(`Fetching students for user: ${user.id} (${user.role})`);
+      
+      let query = supabase.from('students').select('*');
+      
+      // If admin, filter by created_by OR if they are the primary admin, show all
+      if (user.role === 'admin') {
+        // Check if this is the primary admin (sanjaim0940r@gmail.com)
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('email')
+          .eq('id', user.id)
+          .single();
+          
+        if (adminData?.email === 'sanjaim0940r@gmail.com') {
+          // Primary admin sees all students to prevent UI "missing" issues
+          console.log('Primary admin detected, fetching all students');
+        } else {
+          query = query.eq('created_by', user.id);
+        }
+      } else {
+        // Students can only see themselves or maybe nothing here
+        query = query.eq('id', user.id);
+      }
+
+      const { data: students, error } = await query;
       
       if (error) {
         console.error('Supabase Error:', error);
-        return res.status(500).json([]); // Return empty array to prevent frontend crash
+        return res.status(500).json([]);
       }
+      
+      console.log(`Found ${students?.length || 0} students`);
       res.json(students || []);
     } catch (err) {
       console.error('Server Error:', err);
@@ -219,7 +281,7 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level, priority_category } = req.body;
     
     // Create quiz
     const { data: quiz, error: quizError } = await supabase
@@ -236,6 +298,7 @@ async function startServer() {
         is_proctored: is_proctored || false,
         strict_mode: strict_mode || false,
         stage_level: stage_level || 1,
+        priority_category: priority_category || 'Normal',
         created_by: (req as any).user.id 
       }])
       .select()
@@ -262,7 +325,7 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level, priority_category } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
@@ -279,7 +342,8 @@ async function startServer() {
         scheduled_at: scheduled_at || null,
         is_proctored: is_proctored || false,
         strict_mode: strict_mode || false,
-        stage_level: stage_level || 1
+        stage_level: stage_level || 1,
+        priority_category: priority_category || 'Normal'
       })
       .eq('id', quizId);
 
@@ -763,43 +827,6 @@ async function startServer() {
     }
   });
 
-  // SMTP Test Endpoint
-  app.post('/api/admin/test-smtp', authenticateToken, async (req, res) => {
-    if ((req as any).user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
-    
-    const { testEmail } = req.body;
-    if (!testEmail) return res.status(400).json({ error: 'Test email address is required' });
-
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      return res.status(400).json({ error: 'SMTP_USER and SMTP_PASS environment variables are missing.' });
-    }
-
-    try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: false,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-
-      await transporter.verify();
-      
-      await transporter.sendMail({
-        from: `"Quiz System Test" <${process.env.SMTP_USER}>`,
-        to: testEmail,
-        subject: 'SMTP Configuration Test',
-        text: 'If you are reading this, your SMTP configuration for the Quiz System is working correctly!'
-      });
-
-      res.json({ success: true, message: 'Test email sent successfully!' });
-    } catch (err: any) {
-      console.error('SMTP Test Error:', err);
-      res.status(500).json({ error: err.message || 'SMTP connection failed' });
-    }
-  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

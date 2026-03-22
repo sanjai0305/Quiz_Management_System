@@ -57,6 +57,7 @@ function StudentManager({ token }: { token: string }) {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,16 +65,25 @@ function StudentManager({ token }: { token: string }) {
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching admin data...');
       const [sRes, qRes, aRes] = await Promise.all([
         fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
-      setStudents(await sRes.json());
-      setQuizzes(await qRes.json());
-      setAttempts(await aRes.json());
+      
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        console.log('Students fetched:', sData.length);
+        setStudents(sData);
+      } else {
+        console.error('Students fetch failed:', await sRes.text());
+      }
+
+      if (qRes.ok) setQuizzes(await qRes.json());
+      if (aRes.ok) setAttempts(await aRes.json());
     } catch (err) {
-      console.error(err);
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -112,9 +122,15 @@ function StudentManager({ token }: { token: string }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h3 className="text-xl font-bold uppercase tracking-tight">Student Registry</h3>
-          <p className="text-[10px] font-bold uppercase opacity-40">Hierarchical Management System</p>
+          <p className="text-[10px] font-bold uppercase opacity-40">Hierarchical Management System • {students.length} Total Students</p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setShowBulkAdd(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-brutal-sm"
+          >
+            <Upload size={16} /> Bulk Upload
+          </button>
           <button 
             onClick={() => setShowAdd(true)}
             className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all shadow-brutal-sm"
@@ -245,7 +261,14 @@ function StudentManager({ token }: { token: string }) {
                           </div>
                           <div>
                             <h4 className="font-bold text-sm uppercase tracking-tight">{student.name}</h4>
-                            <p className="text-[10px] font-mono font-bold text-indigo-600">{student.registration_number}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] font-mono font-bold text-indigo-600">{student.registration_number}</p>
+                              {student.priority_type && student.priority_type !== 'normal' && (
+                                <span className="text-[8px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded uppercase">
+                                  {student.priority_type}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                         <div className="flex items-center gap-3">
@@ -365,6 +388,13 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                   <p className="font-bold text-lg">Section {student.section || 'A'}</p>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-[#141414]/5">
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Priority</p>
+                  <p className="font-bold text-sm uppercase">{student.priority_type || 'normal'}</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -445,7 +475,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     profile_picture: '',
     year: 1,
     section: 'A' as 'A' | 'B',
-    priority_type: 'Normal' as 'Normal' | 'Children' | 'Disability'
+    priority_type: 'normal' as 'normal' | 'children' | 'disability' | 'senior'
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -568,9 +598,22 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                   <option value="B">Section B</option>
                 </select>
               </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Type</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.priority_type}
+                  onChange={e => setFormData({...formData, priority_type: e.target.value as any})}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="children">Children</option>
+                  <option value="disability">Disability</option>
+                  <option value="senior">Senior</option>
+                </select>
+              </div>
             </div>
-          </div>
 
+            </div>
           {error && <p className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
 
           <button type="submit" className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all">Complete Enrollment</button>
@@ -612,37 +655,6 @@ function QuizManager({ token }: { token: string }) {
     if (res.ok) {
       fetchQuizzes();
       setQuizToDelete(null);
-    }
-  };
-
-  const [testEmail, setTestEmail] = useState('');
-  const [isTestingSMTP, setIsTestingSMTP] = useState(false);
-
-  const handleTestSMTP = async () => {
-    if (!testEmail) {
-      alert('Please enter a test email address');
-      return;
-    }
-    setIsTestingSMTP(true);
-    try {
-      const response = await fetch('/api/admin/test-smtp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ testEmail })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        alert(data.message);
-      } else {
-        alert('SMTP test failed: ' + (data.error || 'Unknown error'));
-      }
-    } catch (error) {
-      alert('Network error while testing SMTP');
-    } finally {
-      setIsTestingSMTP(false);
     }
   };
 
@@ -691,31 +703,6 @@ function QuizManager({ token }: { token: string }) {
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 border-2 border-[#141414] shadow-brutal-sm flex items-center justify-center gap-2"
               >
                 <Mail size={16} /> Send Reports
-              </button>
-            </div>
-          </div>
-
-          {/* SMTP Test */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Test Email Configuration</h4>
-            <p className="text-[10px] font-medium opacity-60">
-              Verify your SMTP settings by sending a test email. Make sure SMTP environment variables are set.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Test email address"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                className="flex-1 px-4 py-2 bg-slate-50 border-2 border-[#141414] rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button
-                onClick={handleTestSMTP}
-                disabled={isTestingSMTP}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 border-2 border-[#141414] shadow-brutal-sm flex items-center gap-2"
-              >
-                <Send size={16} />
-                {isTestingSMTP ? 'Testing...' : 'Test'}
               </button>
             </div>
           </div>
@@ -1052,6 +1039,24 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
                 onChange={e => setQuizData({...quizData, scheduled_time: e.target.value})} 
               />
             </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
+              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.priority_category} onChange={e => setQuizData({...quizData, priority_category: e.target.value as any})}>
+                <option value="Normal">Normal</option>
+                <option value="Children">Children</option>
+                <option value="Disability">Disability</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Stage Level</label>
+              <input 
+                type="number" 
+                required 
+                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
+                value={quizData.stage_level} 
+                onChange={e => setQuizData({...quizData, stage_level: parseInt(e.target.value) || 1})} 
+              />
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -1263,6 +1268,11 @@ function LeaderboardView({ token }: { token: string }) {
                     <td className="p-6">
                       <div className="flex items-center gap-2">
                         <p className="font-bold">{row.name}</p>
+                        {row.priority_type && row.priority_type !== 'normal' && (
+                          <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-amber-200">
+                            {row.priority_type}
+                          </span>
+                        )}
                         {row.malpracticeCount > 0 && (
                           <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-red-200 animate-pulse">
                             Malpractice: {row.malpracticeCount}
