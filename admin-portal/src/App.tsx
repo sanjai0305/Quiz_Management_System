@@ -93,7 +93,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <SeedData />
         <Routes>
           <Route path="/login" element={<Login />} />

@@ -8,7 +8,7 @@
     "start": "echo 'Run \"cd admin-portal && npm start\" for Admin OR \"cd student-portal && npm start\" for Student'",
     "admin": "cd admin-portal && npm run dev",
     "student": "cd student-portal && npm run dev",
-    "preview": "vite preview",
+    "build": "cd admin-portal && npm install && npm run build && cd ../student-portal && npm install && npm run build && cd .. && mkdir -p dist/admin dist/student && cp -r admin-portal/dist/* dist/admin/ && cp -r student-portal/dist/* dist/student/ && cp index.html dist/",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
