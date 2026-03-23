@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { User, Quiz, Attempt } from '../types';
 import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -66,9 +66,9 @@ function StudentManager({ token }: { token: string }) {
     setLoading(true);
     try {
       const [sRes, qRes, aRes] = await Promise.all([
-        fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_BASE_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/quizzes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
       if (sRes.ok) setStudents(await sRes.json());
@@ -82,7 +82,7 @@ function StudentManager({ token }: { token: string }) {
   };
 
   const handleDeleteStudent = async (id: number) => {
-    const res = await fetch(`/api/students/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -374,6 +374,27 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                   <p className="font-bold text-lg">Section {student.section || 'A'}</p>
                 </div>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#141414]/5 pt-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Priority Type</p>
+                  <p className="font-bold text-sm uppercase text-amber-600">{student.priority_type || 'Normal'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Safety Secure</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${student.is_safety_secure ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <p className="font-bold text-sm uppercase">{student.is_safety_secure ? 'Enabled' : 'Disabled'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Camera Facility</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${student.camera_facilities ? 'bg-indigo-500' : 'bg-red-500'}`} />
+                    <p className="font-bold text-sm uppercase">{student.camera_facilities ? 'Enabled' : 'Disabled'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -473,7 +494,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const res = await fetch('/api/students', {
+    const res = await fetch(`${API_BASE_URL}/api/students`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -630,7 +651,7 @@ function QuizManager({ token }: { token: string }) {
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
-    const res = await fetch('/api/quizzes', {
+    const res = await fetch(`${API_BASE_URL}/api/quizzes`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -638,7 +659,7 @@ function QuizManager({ token }: { token: string }) {
   };
 
   const handleDeleteQuiz = async (id: number) => {
-    const res = await fetch(`/api/quizzes/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/quizzes/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -666,7 +687,7 @@ function QuizManager({ token }: { token: string }) {
                 onClick={async () => {
                   const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
                   if (!date) return;
-                  const res = await fetch('/api/admin/trigger-report', {
+                  const res = await fetch(`${API_BASE_URL}/api/admin/trigger-report`, {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
@@ -759,7 +780,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      fetch(`/api/quizzes/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${API_BASE_URL}/api/quizzes/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         setQuizData({
@@ -793,7 +814,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = quizId ? `/api/quizzes/${quizId}` : '/api/quizzes';
+    const url = quizId ? `${API_BASE_URL}/api/quizzes/${quizId}` : `${API_BASE_URL}/api/quizzes`;
     const method = quizId ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method,
@@ -830,7 +851,7 @@ function LeaderboardView({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
     .then(res => res.json())
     .then(json => { setData(json); setLoading(false); });
   }, [token]);

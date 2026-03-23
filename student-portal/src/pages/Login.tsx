@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { Shield, User as UserIcon, Calendar, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -26,7 +26,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/student/login', {
+      const res = await fetch(`${API_BASE_URL}/api/student/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

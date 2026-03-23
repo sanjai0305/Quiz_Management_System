@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { Quiz, Attempt, Question } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -19,9 +19,9 @@ export default function StudentDashboard() {
     setLoading(true);
     try {
       const [qRes, rRes, lRes] = await Promise.all([
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_BASE_URL}/api/quizzes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/student/results`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       const qData = await qRes.json();
       const rData = await rRes.json();
@@ -114,6 +114,34 @@ export default function StudentDashboard() {
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
           <p className="text-sm font-black uppercase">{user?.department} - Section {user?.section}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Safety Status</p>
+            <p className="font-bold text-sm uppercase">{user?.is_safety_secure ? 'Secure Environment' : 'Standard'}</p>
+          </div>
+          <ShieldCheck className={user?.is_safety_secure ? 'text-emerald-600' : 'text-gray-300'} size={32} />
+        </div>
+        <div className="bg-indigo-50 border-2 border-indigo-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">Camera Facility</p>
+            <p className="font-bold text-sm uppercase">{user?.camera_facilities ? 'Active Monitoring' : 'Inactive'}</p>
+          </div>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${user?.camera_facilities ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+            <Clock size={20} />
+          </div>
+        </div>
+        <div className="bg-amber-50 border-2 border-amber-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Priority Level</p>
+            <p className="font-bold text-sm uppercase">{user?.priority_type || 'Normal'}</p>
+          </div>
+          <div className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-black text-xs">
+            {user?.priority_type?.[0].toUpperCase() || 'N'}
+          </div>
         </div>
       </div>
 

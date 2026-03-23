@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Camera, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,6 +24,8 @@ export default function QuizPage() {
   const [securityLog, setSecurityLog] = useState<{ event: string; timestamp: string }[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [environmentPhoto, setEnvironmentPhoto] = useState<string | null>(null);
+  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const [securityConfirmed, setSecurityConfirmed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -54,7 +56,7 @@ export default function QuizPage() {
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
       try {
-        const rRes = await fetch('/api/student/results', {
+        const rRes = await fetch(`${API_BASE_URL}/api/student/results`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const results = await rRes.json();
@@ -66,7 +68,7 @@ export default function QuizPage() {
           return;
         }
 
-        const qRes = await fetch(`/api/quizzes/${id}`, {
+        const qRes = await fetch(`${API_BASE_URL}/api/quizzes/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -153,7 +155,7 @@ export default function QuizPage() {
     };
 
     if (token && id) checkAttemptAndFetchQuiz();
-  }, [id, token, navigate]);
+  }, [id, token, navigate, user?.priority_type]);
 
   useEffect(() => {
     if (stage !== 'quiz' || !quiz?.strict_mode) return;
@@ -205,14 +207,17 @@ export default function QuizPage() {
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = (type: 'verification' | 'environment') => {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext('2d');
       if (context) {
         canvasRef.current.width = videoRef.current.videoWidth;
         canvasRef.current.height = videoRef.current.videoHeight;
         context.drawImage(videoRef.current, 0, 0);
-        setCapturedPhoto(canvasRef.current.toDataURL('image/jpeg'));
+        const photo = canvasRef.current.toDataURL('image/jpeg');
+        if (type === 'verification') setCapturedPhoto(photo);
+        else setEnvironmentPhoto(photo);
+        
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
       }
@@ -233,7 +238,7 @@ export default function QuizPage() {
     });
 
     try {
-      const response = await fetch('/api/attempts', {
+      const response = await fetch(`${API_BASE_URL}/api/attempts`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { Shield, User as UserIcon, Key, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -33,7 +33,7 @@ export default function Login() {
 
     if (isForgotPassword) {
       try {
-        const res = await fetch('/api/admin/reset-password', {
+        const res = await fetch(`${API_BASE_URL}/api/admin/reset-password`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -58,7 +58,7 @@ export default function Login() {
 
     if (isRegistering) {
       try {
-        const res = await fetch('/api/admin/register', {
+        const res = await fetch(`${API_BASE_URL}/api/admin/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -83,7 +83,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch(`${API_BASE_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, password: formData.password })
