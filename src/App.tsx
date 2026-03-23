@@ -7,6 +7,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import StudentPreview from './pages/StudentPreview';
 import QuizPage from './pages/QuizPage';
 import { Layout } from './components/Layout';
+import SeedData from './components/SeedData';
 import { AlertCircle } from 'lucide-react';
 
 interface AuthContextType {
@@ -77,6 +78,7 @@ export default function App() {
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
       <BrowserRouter>
+        <SeedData />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<Layout />}>

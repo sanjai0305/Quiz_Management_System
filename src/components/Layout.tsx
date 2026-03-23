@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { LogOut, User as UserIcon, ShieldCheck, Accessibility } from 'lucide-react';
+import { AccessibilityMenu } from './AccessibilityMenu';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -46,6 +47,8 @@ export function Layout() {
         <Outlet />
       </main>
       
+      <AccessibilityMenu />
+
       <footer className="mt-auto py-8 border-t border-[#141414]/5 text-center">
         <p className="text-xs text-[#141414]/40 font-medium uppercase tracking-widest">
           &copy; 2026 MAHENDRA INSTITUTE OF TECHNOLOGY • Secure • Accessible • Intelligent

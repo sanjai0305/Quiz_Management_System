@@ -97,11 +97,6 @@ export default function StudentDashboard() {
                 {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
               </span>
             )}
-            {user?.priority_type && user.priority_type !== 'normal' && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-amber-200">
-                {user.priority_type} Category
-              </span>
-            )}
           </div>
         </div>
       </header>
@@ -130,39 +125,6 @@ export default function StudentDashboard() {
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
           <p className="text-sm font-black uppercase">{user?.department} - Section {user?.section}</p>
-        </div>
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
-              <ShieldCheck size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Security & Priority</h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${user?.is_safety_secure ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
-              Safety: {user?.is_safety_secure ? 'Secure' : 'Pending'}
-            </span>
-            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${user?.camera_facilities ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
-              Camera: {user?.camera_facilities ? 'Enabled' : 'Disabled'}
-            </span>
-            <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-200">
-              Priority: {user?.priority_type || 'Normal'}
-            </span>
-          </div>
-        </div>
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
-              <Trophy size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Current Stage</h4>
-          </div>
-          <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Level: {user?.current_stage || 1}</p>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map(s => (
-              <div key={s} className={`h-1.5 flex-1 rounded-full ${user?.current_stage && user.current_stage >= s ? 'bg-purple-500' : 'bg-purple-100'}`} />
-            ))}
-          </div>
         </div>
       </div>
 
@@ -216,6 +178,16 @@ export default function StudentDashboard() {
                                   <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
                                   <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
                                 </div>
+                                {(() => {
+                                  const expiry = quiz.expires_at || quiz.priority_category;
+                                  const isExpired = expiry && new Date(expiry) < now;
+                                  return expiry && !attempted && (
+                                    <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${isExpired ? 'text-red-600' : 'text-amber-600'}`}>
+                                      <AlertCircle size={12} />
+                                      {isExpired ? 'Expired' : `Ends: ${new Date(expiry).toLocaleString()}`}
+                                    </div>
+                                  );
+                                })()}
                                 {attempted && (
                                   <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 w-fit">
                                     <ShieldCheck size={14} />
@@ -244,17 +216,21 @@ export default function StudentDashboard() {
                           </div>
                           {(() => {
                             const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > now;
+                            const expiry = quiz.expires_at || quiz.priority_category;
+                            const isExpired = expiry && new Date(expiry) < now;
                             const attempted = isAttempted(quiz.id);
                             
                             return (
                               <button 
                                 onClick={() => handleStartQuiz(quiz)}
-                                disabled={attempted || isScheduled}
+                                disabled={attempted || isScheduled || isExpired}
                                 className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all group ${
                                   attempted 
                                     ? 'bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed' 
                                     : isScheduled
                                     ? 'bg-gray-100 text-gray-400 border-2 border-gray-200 cursor-not-allowed'
+                                    : isExpired
+                                    ? 'bg-red-50 text-red-400 border-2 border-red-100 cursor-not-allowed'
                                     : 'bg-[#141414] text-white hover:bg-[#2a2a2a]'
                                 }`}
                               >
@@ -262,6 +238,8 @@ export default function StudentDashboard() {
                                   <>Locked <ShieldCheck size={16} /></>
                                 ) : isScheduled ? (
                                   <>Not Started <Clock size={16} /></>
+                                ) : isExpired ? (
+                                  <>Expired <X size={16} /></>
                                 ) : (
                                   <>Initiate Quiz <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
                                 )}

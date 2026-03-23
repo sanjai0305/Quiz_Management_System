@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -388,13 +388,6 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                   <p className="font-bold text-lg">Section {student.section || 'A'}</p>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-[#141414]/5">
-                <div>
-                  <p className="text-[10px] font-bold uppercase opacity-30">Priority</p>
-                  <p className="font-bold text-sm uppercase">{student.priority_type || 'normal'}</p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -475,7 +468,9 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     profile_picture: '',
     year: 1,
     section: 'A' as 'A' | 'B',
-    priority_type: 'normal' as 'normal' | 'children' | 'disability' | 'senior'
+    priority_type: 'normal' as 'normal' | 'children' | 'disability' | 'senior',
+    is_safety_secure: true,
+    camera_facilities: true
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -613,6 +608,29 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-3 p-3 border-2 border-[#141414] rounded-xl bg-emerald-50/50">
+                <input 
+                  type="checkbox" 
+                  id="is_safety_secure"
+                  className="w-5 h-5 accent-[#141414]"
+                  checked={formData.is_safety_secure}
+                  onChange={e => setFormData({...formData, is_safety_secure: e.target.checked})}
+                />
+                <label htmlFor="is_safety_secure" className="text-[10px] font-black uppercase tracking-tight cursor-pointer">Safety Secure</label>
+              </div>
+              <div className="flex items-center gap-3 p-3 border-2 border-[#141414] rounded-xl bg-indigo-50/50">
+                <input 
+                  type="checkbox" 
+                  id="camera_facilities"
+                  className="w-5 h-5 accent-[#141414]"
+                  checked={formData.camera_facilities}
+                  onChange={e => setFormData({...formData, camera_facilities: e.target.checked})}
+                />
+                <label htmlFor="camera_facilities" className="text-[10px] font-black uppercase tracking-tight cursor-pointer">Camera Facility</label>
+              </div>
+            </div>
+
             </div>
           {error && <p className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
 
@@ -745,6 +763,19 @@ function QuizManager({ token }: { token: string }) {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {(() => {
+                const expiry = quiz.expires_at || quiz.priority_category;
+                const isExpired = expiry && new Date(expiry) < new Date();
+                return isExpired && (
+                  <button 
+                    onClick={() => setEditingQuizId(quiz.id)}
+                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg border border-amber-200 font-bold text-[10px] uppercase tracking-widest hover:bg-amber-200 transition-all flex items-center gap-1"
+                    title="Republish Quiz"
+                  >
+                    <RefreshCw size={14} /> Republish
+                  </button>
+                );
+              })()}
               <button 
                 onClick={() => setEditingQuizId(quiz.id)}
                 className="p-3 bg-gray-50 text-[#141414] rounded-xl border border-[#141414]/10 hover:bg-[#141414] hover:text-white transition-all opacity-0 group-hover:opacity-100"
@@ -801,10 +832,11 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     section: 'Both' as 'A' | 'B' | 'Both',
     scheduled_date: '',
     scheduled_time: '',
+    expiry_date: '',
+    expiry_time: '',
     is_proctored: false,
     strict_mode: false,
-    priority_category: 'Normal' as 'Normal' | 'Children' | 'Disability',
-    stage_level: 1,
+    reset_attempts: false,
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
   const [showBulk, setShowBulk] = useState(false);
@@ -825,7 +857,6 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
         let sTime = '';
         if (data.scheduled_at) {
           const d = new Date(data.scheduled_at);
-          // Get local date and time parts
           const year = d.getFullYear();
           const month = String(d.getMonth() + 1).padStart(2, '0');
           const day = String(d.getDate()).padStart(2, '0');
@@ -834,6 +865,21 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
           sDate = `${year}-${month}-${day}`;
           sTime = `${hours}:${minutes}`;
         }
+
+        let eDate = '';
+        let eTime = '';
+        const expiryVal = data.expires_at || data.priority_category; // Fallback to priority_category
+        if (expiryVal) {
+          const d = new Date(expiryVal);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          eDate = `${year}-${month}-${day}`;
+          eTime = `${hours}:${minutes}`;
+        }
+
           setQuizData({
             title: data.title,
             subject: data.subject,
@@ -844,10 +890,11 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
             section: data.section || 'Both',
             scheduled_date: sDate,
             scheduled_time: sTime,
+            expiry_date: eDate,
+            expiry_time: eTime,
             is_proctored: data.is_proctored || false,
             strict_mode: data.strict_mode || false,
-            priority_category: data.priority_category || 'Normal',
-            stage_level: data.stage_level || 1,
+            reset_attempts: false,
             questions: data.questions.map((q: any) => ({
               text: q.question_text,
               a: q.option_a,
@@ -926,9 +973,14 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
       ? new Date(`${quizData.scheduled_date}T${quizData.scheduled_time}`).toISOString()
       : null;
 
+    const expires_at = (quizData.expiry_date && quizData.expiry_time)
+      ? new Date(`${quizData.expiry_date}T${quizData.expiry_time}`).toISOString()
+      : null;
+
     const payload = {
       ...quizData,
-      scheduled_at
+      scheduled_at,
+      expires_at
     };
 
     try {
@@ -1040,23 +1092,35 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Priority Category</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.priority_category} onChange={e => setQuizData({...quizData, priority_category: e.target.value as any})}>
-                <option value="Normal">Normal</option>
-                <option value="Children">Children</option>
-                <option value="Disability">Disability</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Stage Level</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Expiry Date</label>
               <input 
-                type="number" 
-                required 
+                type="date" 
                 className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
-                value={quizData.stage_level} 
-                onChange={e => setQuizData({...quizData, stage_level: parseInt(e.target.value) || 1})} 
+                value={quizData.expiry_date} 
+                onChange={e => setQuizData({...quizData, expiry_date: e.target.value})} 
               />
             </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Expiry Time</label>
+              <input 
+                type="time" 
+                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
+                value={quizData.expiry_time} 
+                onChange={e => setQuizData({...quizData, expiry_time: e.target.value})} 
+              />
+            </div>
+            {quizId && (
+              <div className="space-y-1 flex items-center gap-3 pt-6">
+                <input 
+                  type="checkbox" 
+                  id="reset_attempts"
+                  className="w-5 h-5 accent-[#141414]"
+                  checked={quizData.reset_attempts}
+                  onChange={e => setQuizData({...quizData, reset_attempts: e.target.checked})}
+                />
+                <label htmlFor="reset_attempts" className="text-[10px] font-black uppercase tracking-tight cursor-pointer text-red-600">Reset All Student Attempts (Republish)</label>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">

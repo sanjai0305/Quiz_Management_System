@@ -20,7 +20,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-mini-project'
 
 // Email Transporter Setup
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: process.env.SMTP_SECURE === 'true',
   auth: {
@@ -29,8 +29,23 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Verify connection configuration
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('SMTP Connection Error:', error.message);
+      console.error('Please check your SMTP_USER and SMTP_PASS in settings.');
+    } else {
+      console.log('SMTP Server is ready to take our messages');
+    }
+  });
+}
+
 async function sendCompletionEmail(adminEmail: string, quizTitle: string, groupInfo: string) {
-  if (!process.env.SMTP_USER || !adminEmail) return;
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS || !adminEmail) {
+    console.warn('SMTP credentials or admin email not configured. Skipping email notification.');
+    return;
+  }
 
   try {
     await transporter.sendMail({
@@ -87,6 +102,25 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+
+  // Ensure requested admin exists
+  const ensureAdmin = async () => {
+    const { data: existingAdmin } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('email', 'sanjaim2006r@gmail.com')
+      .single();
+
+    if (!existingAdmin) {
+      await supabase.from('admins').insert([{
+        email: 'sanjaim2006r@gmail.com',
+        password: 'a',
+        name: 'Sanjai M'
+      }]);
+      console.log('Created requested admin account: sanjaim2006r@gmail.com');
+    }
+  };
+  ensureAdmin();
 
   // Admin Auth
   app.post('/api/admin/register', async (req, res) => {
@@ -181,6 +215,8 @@ async function startServer() {
       year: s.year || 1,
       section: s.section || 'A',
       priority_type: s.priority_type || 'normal',
+      is_safety_secure: s.is_safety_secure !== undefined ? s.is_safety_secure : true,
+      camera_facilities: s.camera_facilities !== undefined ? s.camera_facilities : true,
       created_by: (req as any).user.id
     }));
 
@@ -200,7 +236,8 @@ async function startServer() {
   app.post('/api/students', authenticateToken, async (req, res) => {
     const { 
       name, registration_number, date_of_birth, mobile, department, 
-      profile_picture, year, section, priority_type 
+      profile_picture, year, section, priority_type,
+      is_safety_secure, camera_facilities
     } = req.body;
     const { data, error } = await supabase
       .from('students')
@@ -214,6 +251,8 @@ async function startServer() {
         year: year || 1,
         section: section || 'A',
         priority_type: priority_type || 'normal',
+        is_safety_secure: is_safety_secure !== undefined ? is_safety_secure : true,
+        camera_facilities: camera_facilities !== undefined ? camera_facilities : true,
         created_by: (req as any).user.id
       }]);
 
@@ -281,24 +320,23 @@ async function startServer() {
 
   // Quiz Management
   app.post('/api/quizzes', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level, priority_category } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, expires_at, is_proctored, strict_mode } = req.body;
     
-    // Create quiz
+    // Insert quiz metadata
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
       .insert([{ 
         title, 
         subject, 
         time_limit, 
-        question_timer: question_timer || 0,
+        question_timer: question_timer || 0, 
         year: year || 1, 
         department: department || 'AIML',
         section: section || 'Both',
         scheduled_at: scheduled_at || null,
+        priority_category: expires_at || null, // Using priority_category to store expiry to avoid schema errors
         is_proctored: is_proctored || false,
         strict_mode: strict_mode || false,
-        stage_level: stage_level || 1,
-        priority_category: priority_category || 'Normal',
         created_by: (req as any).user.id 
       }])
       .select()
@@ -325,7 +363,7 @@ async function startServer() {
   });
 
   app.put('/api/quizzes/:id', authenticateToken, async (req, res) => {
-    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, is_proctored, strict_mode, stage_level, priority_category } = req.body;
+    const { title, subject, time_limit, question_timer, year, department, section, questions, scheduled_at, expires_at, is_proctored, strict_mode, reset_attempts } = req.body;
     const quizId = req.params.id;
 
     // Update quiz metadata
@@ -340,14 +378,18 @@ async function startServer() {
         department: department || 'AIML', 
         section: section || 'Both',
         scheduled_at: scheduled_at || null,
+        priority_category: expires_at || null, // Using priority_category to store expiry
         is_proctored: is_proctored || false,
-        strict_mode: strict_mode || false,
-        stage_level: stage_level || 1,
-        priority_category: priority_category || 'Normal'
+        strict_mode: strict_mode || false
       })
       .eq('id', quizId);
 
     if (quizError) return res.status(500).json({ error: quizError.message });
+
+    // If republishing/resetting attempts
+    if (reset_attempts) {
+      await supabase.from('attempts').delete().eq('quiz_id', quizId);
+    }
 
     // Delete old questions
     await supabase.from('questions').delete().eq('quiz_id', quizId);
@@ -795,16 +837,6 @@ async function startServer() {
           throw new Error('SMTP credentials are not configured in environment variables.');
         }
 
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
-
         await transporter.sendMail({
           from: `"Quiz System" <${process.env.SMTP_USER}>`,
           to: adminEmail,
@@ -948,15 +980,10 @@ async function startServer() {
         const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
         // 5. Send Email
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
+        if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+          console.warn('SMTP credentials not configured, skipping daily report email.');
+          continue;
+        }
 
         await transporter.sendMail({
           from: `"Quiz System" <${process.env.SMTP_USER}>`,

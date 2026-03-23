@@ -19,7 +19,7 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [stage, setStage] = useState<'loading' | 'verification' | 'environment_check' | 'security_check' | 'instructions' | 'quiz' | 'result'>('loading');
+  const [stage, setStage] = useState<'loading' | 'verification' | 'environment_check' | 'safety_check' | 'security_check' | 'instructions' | 'quiz' | 'result'>('loading');
   const [malpracticeCount, setMalpracticeCount] = useState(0);
   const [securityLog, setSecurityLog] = useState<{ event: string; timestamp: string }[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -28,8 +28,24 @@ export default function QuizPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [monitoringPhotos, setMonitoringPhotos] = useState<string[]>([]);
+  const [isTtsEnabled] = useState(() => localStorage.getItem('pref_tts') === 'true');
+
+  const speak = useCallback((text: string) => {
+    if (!isTtsEnabled) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }, [isTtsEnabled]);
 
   const [showAlreadyAttempted, setShowAlreadyAttempted] = useState(false);
+
+  const currentQuestion = quiz?.questions?.[currentIdx];
+  useEffect(() => {
+    if (stage === 'quiz' && currentQuestion) {
+      speak(`Question ${currentIdx + 1}: ${currentQuestion.question_text}`);
+    }
+  }, [currentIdx, stage, currentQuestion, speak]);
 
   const logSecurityEvent = useCallback((event: string) => {
     setSecurityLog(prev => [...prev, { event, timestamp: new Date().toISOString() }]);
@@ -117,15 +133,14 @@ export default function QuizPage() {
         setQuiz(data);
         
         let initialTime = data.time_limit * 60;
-        
-        // Priority Wise Time Adjustment
-        if (user?.priority_type === 'Disability') {
-          initialTime = Math.floor(initialTime * 1.5); // 50% extra time
-        } else if (user?.priority_type === 'Children') {
-          initialTime = Math.floor(initialTime * 1.25); // 25% extra time
-        }
-        
         setTimeLeft(initialTime);
+
+        const expiry = data.expires_at || data.priority_category;
+        if (expiry && new Date(expiry) < new Date()) {
+          alert('This quiz has expired and is no longer available.');
+          navigate('/student');
+          return;
+        }
 
         if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
         
@@ -485,9 +500,52 @@ export default function QuizPage() {
           ) : (
             <div className="flex gap-4">
               <button onClick={() => setEnvironmentPhoto(null)} className="flex-1 py-3 border-2 border-[#141414] font-bold">Retake</button>
-              <button onClick={() => setStage('security_check')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Next Stage</button>
+              <button onClick={() => setStage('safety_check')} className="flex-1 py-3 bg-[#141414] text-white font-bold border-2 border-[#141414]">Next Stage</button>
             </div>
           )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (stage === 'safety_check') {
+    return (
+      <div className="min-h-screen bg-[#E4E3E0] p-8 flex items-center justify-center">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white border-4 border-[#141414] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)] p-8 max-w-md w-full space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black uppercase">Stage 3: Safety</h2>
+            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-600 px-2 py-1 rounded">SECURE</span>
+          </div>
+          <p className="text-sm font-bold opacity-60">Final safety verification before entering the secure environment.</p>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex items-center gap-4">
+              <div className="w-10 h-10 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-emerald-700">System Integrity</p>
+                <p className="text-[10px] font-bold text-emerald-600 opacity-80">All security modules are active and verified.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex items-center gap-4">
+              <div className="w-10 h-10 bg-indigo-500 text-white rounded-full flex items-center justify-center shrink-0">
+                <Camera size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-indigo-700">Camera Facility</p>
+                <p className="text-[10px] font-bold text-indigo-600 opacity-80">Continuous proctoring is enabled for this session.</p>
+              </div>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => setStage('security_check')}
+            className="w-full py-4 bg-[#141414] text-white font-black uppercase tracking-widest border-4 border-[#141414] hover:bg-gray-800 transition-all"
+          >
+            Confirm & Proceed
+          </button>
         </motion.div>
       </div>
     );
@@ -653,8 +711,9 @@ export default function QuizPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {['a', 'b', 'c', 'd'].map(opt => {
                         const optKey = `option_${opt}` as keyof Question;
-                        const isCorrectOpt = opt === q.correct_answer;
-                        const isStudentOpt = opt === studentAns;
+                        const originalKey = q.option_mapping?.[opt] || opt;
+                        const isCorrectOpt = originalKey === q.correct_answer;
+                        const isStudentOpt = originalKey === studentAns;
                         return (
                           <div key={opt} className={`p-3 rounded-xl text-xs font-medium border ${
                             isCorrectOpt ? 'bg-emerald-100 border-emerald-200 text-emerald-800' :
@@ -677,7 +736,6 @@ export default function QuizPage() {
     );
   }
 
-  const currentQuestion = quiz.questions?.[currentIdx];
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
   return (

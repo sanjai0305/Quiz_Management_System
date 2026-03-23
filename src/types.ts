@@ -10,7 +10,6 @@ export interface User {
   section?: 'A' | 'B';
   profile_picture?: string;
   year?: number;
-  priority_type?: 'normal' | 'children' | 'disability' | 'senior';
 }
 
 export interface Quiz {
@@ -24,9 +23,10 @@ export interface Quiz {
   section: 'A' | 'B' | 'Both';
   questions?: Question[];
   scheduled_at?: string; // ISO date string
+  expires_at?: string; // ISO date string
+  priority_category?: string; // Used as fallback for expires_at
   is_proctored?: boolean;
   strict_mode?: boolean;
-  stage_level?: number;
 }
 
 export interface Question {
