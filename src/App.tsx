@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import StudentPreview from './pages/StudentPreview';
 import QuizPage from './pages/QuizPage';
+import SecurityDashboard from './pages/SecurityDashboard';
 import { Layout } from './components/Layout';
 import SeedData from './components/SeedData';
 import { AlertCircle } from 'lucide-react';
@@ -87,6 +88,14 @@ export default function App() {
               element={
                 <ProtectedRoute role="admin">
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/security"
+              element={
+                <ProtectedRoute role="admin">
+                  <SecurityDashboard />
                 </ProtectedRoute>
               }
             />

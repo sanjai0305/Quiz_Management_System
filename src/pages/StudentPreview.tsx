@@ -4,6 +4,7 @@ import { useAuth } from '../App';
 import { Quiz, User } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getApiUrl } from '../lib/api';
 
 export default function StudentPreview() {
   const { id } = useParams();
@@ -23,7 +24,7 @@ export default function StudentPreview() {
     const fetchData = async () => {
       try {
         // Fetch student details
-        const sRes = await fetch(`/api/admin/student/${id}`, {
+        const sRes = await fetch(getApiUrl(`/api/admin/student/${id}`), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const studentData = await sRes.json();
@@ -31,8 +32,8 @@ export default function StudentPreview() {
 
         // Fetch student's view of quizzes and results
         const [qRes, rRes] = await Promise.all([
-          fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch(`/api/admin/student/${id}/results`, { headers: { 'Authorization': `Bearer ${token}` } })
+          fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch(getApiUrl(`/api/admin/student/${id}/results`), { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
         
         const qData = await qRes.json();

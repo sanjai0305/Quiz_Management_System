@@ -1,8 +1,9 @@
 import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { LogOut, User as UserIcon, ShieldCheck, Accessibility } from 'lucide-react';
+import { LogOut, User as UserIcon, ShieldCheck, Accessibility, Shield } from 'lucide-react';
 import { AccessibilityMenu } from './AccessibilityMenu';
+import { Link } from 'react-router-dom';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -27,6 +28,15 @@ export function Layout() {
         </div>
 
         <div className="flex items-center gap-6">
+          {user?.role === 'admin' && (
+            <Link 
+              to="/admin/security" 
+              className="flex items-center gap-2 px-4 py-2 bg-[#141414]/5 hover:bg-[#141414]/10 rounded-lg transition-colors text-sm font-bold uppercase tracking-tight"
+            >
+              <Shield size={18} />
+              <span>Security</span>
+            </Link>
+          )}
           <div className="flex items-center gap-3 border-l border-[#141414]/10 pl-6">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold">{user?.name}</p>

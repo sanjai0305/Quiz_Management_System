@@ -4,6 +4,7 @@ import { Quiz, Attempt, Question } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { getApiUrl } from '../lib/api';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -19,9 +20,9 @@ export default function StudentDashboard() {
     setLoading(true);
     try {
       const [qRes, rRes, lRes] = await Promise.all([
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(getApiUrl('/api/student/results'), { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       const qData = await qRes.json();
       const rData = await rRes.json();

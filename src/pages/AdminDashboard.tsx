@@ -3,6 +3,7 @@ import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
 import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getApiUrl } from '../lib/api';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
@@ -67,9 +68,9 @@ function StudentManager({ token }: { token: string }) {
     try {
       console.log('Fetching admin data...');
       const [sRes, qRes, aRes] = await Promise.all([
-        fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(getApiUrl('/api/students'), { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
       if (sRes.ok) {
@@ -90,7 +91,7 @@ function StudentManager({ token }: { token: string }) {
   };
 
   const handleDeleteStudent = async (id: number) => {
-    const res = await fetch(`/api/students/${id}`, {
+    const res = await fetch(getApiUrl(`/api/students/${id}`), {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -489,7 +490,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const res = await fetch('/api/students', {
+    const res = await fetch(getApiUrl('/api/students'), {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -650,7 +651,7 @@ function QuizManager({ token }: { token: string }) {
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
-    const res = await fetch('/api/quizzes', {
+    const res = await fetch(getApiUrl('/api/quizzes'), {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -658,7 +659,7 @@ function QuizManager({ token }: { token: string }) {
   };
 
   const fetchStudents = async () => {
-    const res = await fetch('/api/students', {
+    const res = await fetch(getApiUrl('/api/students'), {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -666,7 +667,7 @@ function QuizManager({ token }: { token: string }) {
   };
 
   const handleDeleteQuiz = async (id: number) => {
-    const res = await fetch(`/api/quizzes/${id}`, {
+    const res = await fetch(getApiUrl(`/api/quizzes/${id}`), {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -703,7 +704,7 @@ function QuizManager({ token }: { token: string }) {
                   const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
                   if (!date) return;
                   
-                  const res = await fetch('/api/admin/trigger-report', {
+                  const res = await fetch(getApiUrl('/api/admin/trigger-report'), {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
@@ -848,7 +849,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      fetch(`/api/quizzes/${quizId}`, {
+      fetch(getApiUrl(`/api/quizzes/${quizId}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -966,7 +967,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const url = quizId ? `/api/quizzes/${quizId}` : '/api/quizzes';
+    const url = quizId ? getApiUrl(`/api/quizzes/${quizId}`) : getApiUrl('/api/quizzes');
     const method = quizId ? 'PUT' : 'POST';
 
     const scheduled_at = (quizData.scheduled_date && quizData.scheduled_time) 
@@ -1228,7 +1229,7 @@ function LeaderboardView({ token }: { token: string }) {
       if (filters.department) params.append('department', filters.department);
       if (filters.section) params.append('section', filters.section);
 
-      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
+      const res = await fetch(getApiUrl(`/api/leaderboard?${params.toString()}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -1390,7 +1391,7 @@ function NotificationCenter({ token }: { token: string }) {
     setSending(true);
     setStatus(null);
     try {
-      const res = await fetch('/api/notifications/send-manual', {
+      const res = await fetch(getApiUrl('/api/notifications/send-manual'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

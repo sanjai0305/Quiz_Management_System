@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import * as XLSX from 'xlsx';
 import nodemailer from 'nodemailer';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -876,22 +877,20 @@ async function startServer() {
     const indexPath = path.join(distPath, 'index.html');
     
     // Check if dist exists before trying to serve
-    import('fs').then(fs => {
-      if (fs.existsSync(indexPath)) {
-        app.use(express.static(distPath));
-        app.get('*', (req, res) => {
-          if (req.url.startsWith('/api/')) {
-            return res.status(404).json({ error: 'API route not found' });
-          }
-          res.sendFile(indexPath);
-        });
-      } else {
-        // If dist doesn't exist, this is likely an API-only deployment
-        app.get('/', (req, res) => {
-          res.send('Quiz Management System API is running. Connect your frontend to this URL.');
-        });
-      }
-    });
+    if (fs.existsSync(indexPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        if (req.url.startsWith('/api/')) {
+          return res.status(404).json({ error: 'API route not found' });
+        }
+        res.sendFile(indexPath);
+      });
+    } else {
+      // If dist doesn't exist, this is likely an API-only deployment
+      app.get('/', (req, res) => {
+        res.send('Quiz Management System API is running. Connect your frontend to this URL.');
+      });
+    }
   }
 
   const PORT = process.env.PORT || 3000;
