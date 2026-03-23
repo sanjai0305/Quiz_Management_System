@@ -1,15 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { User } from './types';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
-import StudentDashboard from './pages/StudentDashboard';
 import StudentPreview from './pages/StudentPreview';
-import QuizPage from './pages/QuizPage';
-import SecurityDashboard from './pages/SecurityDashboard';
 import { Layout } from './components/Layout';
 import SeedData from './components/SeedData';
-import { AlertCircle } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +17,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://quiz-management-system-f8wm.onrender.com';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -31,7 +31,6 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode, role: 'admin'
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Small delay to ensure state is settled and avoid flash of login
     const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -62,23 +61,39 @@ export default function App() {
     }
   });
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Here we assume the role is admin for admin-portal
+        const userData: User = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          name: firebaseUser.displayName || 'Admin',
+          role: 'admin'
+        };
+        setUser(userData);
+        setToken('firebase-managed'); // Firebase handles tokens, but we keep this for compatibility with ProtectedRoute
+      } else {
+        setUser(null);
+        setToken(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const login = (newToken: string, newUser: User) => {
+    // This is now handled by onAuthStateChanged, but kept for legacy calls if any
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = async () => {
+    await signOut(auth);
   };
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <SeedData />
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -92,14 +107,6 @@ export default function App() {
               }
             />
             <Route
-              path="/admin/security"
-              element={
-                <ProtectedRoute role="admin">
-                  <SecurityDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/student-preview/:id"
               element={
                 <ProtectedRoute role="admin">
@@ -107,24 +114,9 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/student/*"
-              element={
-                <ProtectedRoute role="student">
-                  <StudentDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quiz/:id"
-              element={
-                <ProtectedRoute role="student">
-                  <QuizPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/" element={<Navigate to="/admin" replace />} />
           </Route>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>

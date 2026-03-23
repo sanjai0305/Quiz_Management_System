@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { Quiz, Attempt, Question } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getApiUrl } from '../lib/api';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -19,26 +20,42 @@ export default function StudentDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [qRes, rRes, lRes] = await Promise.all([
-        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/student/results'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
-      const qData = await qRes.json();
-      const rData = await rRes.json();
-      const lData = await lRes.json();
+      // Fetch Quizzes matching student's criteria
+      const qQuery = query(
+        collection(db, 'quizzes'),
+        where('department', '==', user?.department),
+        where('year', '==', user?.year)
+      );
+      const qSnap = await getDocs(qQuery);
+      const allQuizzes = qSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz));
+      // Filter by section client-side since Firestore 'where' has limitations with 'Both'
+      setQuizzes(allQuizzes.filter(q => q.section === 'Both' || q.section === user?.section));
+
+      // Fetch Student's Results
+      const rQuery = query(
+        collection(db, 'attempts'),
+        where('registration_number', '==', user?.registration_number)
+      );
+      const rSnap = await getDocs(rQuery);
+      setResults(rSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Attempt)));
+
+      // Fetch Leaderboard (calculated from all attempts in same dept/section)
+      const lSnap = await getDocs(collection(db, 'attempts'));
+      const studentScores: Record<string, { name: string, registration_number: string, totalScore: number, id: string }> = {};
       
-      setQuizzes(Array.isArray(qData) ? qData : []);
-      setResults(Array.isArray(rData) ? rData : []);
-      setLeaderboard(Array.isArray(lData) ? lData : []);
-      
-      console.log('Dashboard Data Loaded:', {
-        quizzesCount: Array.isArray(qData) ? qData.length : 0,
-        resultsCount: Array.isArray(rData) ? rData.length : 0,
-        results: rData
+      lSnap.docs.forEach(d => {
+        const attempt = d.data();
+        const sid = attempt.registration_number;
+        if (!studentScores[sid]) {
+          studentScores[sid] = { name: attempt.name, registration_number: sid, totalScore: 0, id: attempt.student_id };
+        }
+        studentScores[sid].totalScore += attempt.score;
       });
+      
+      const sorted = Object.values(studentScores).sort((a, b) => b.totalScore - a.totalScore);
+      setLeaderboard(sorted);
     } catch (err) {
-      console.error('Failed to fetch data:', err);
+      console.error('Failed to fetch Firestore data:', err);
     } finally {
       setLoading(false);
     }
@@ -55,11 +72,7 @@ export default function StudentDashboard() {
 
   const isAttempted = (quizId: number | string) => {
     if (!Array.isArray(results)) return false;
-    const attempted = results.some(r => {
-      const match = r.quiz_id.toString() === quizId.toString();
-      return match;
-    });
-    return attempted;
+    return results.some(r => r.quiz_id.toString() === quizId.toString());
   };
 
   const handleStartQuiz = (quiz: Quiz) => {
@@ -78,7 +91,6 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-12">
-
       <header className="flex items-center gap-6">
         <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
           {user?.profile_picture ? (
@@ -126,6 +138,34 @@ export default function StudentDashboard() {
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
           <p className="text-sm font-black uppercase">{user?.department} - Section {user?.section}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Safety Status</p>
+            <p className="font-bold text-sm uppercase">{user?.is_safety_secure ? 'Secure Environment' : 'Standard'}</p>
+          </div>
+          <ShieldCheck className={user?.is_safety_secure ? 'text-emerald-600' : 'text-gray-300'} size={32} />
+        </div>
+        <div className="bg-indigo-50 border-2 border-indigo-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">Camera Facility</p>
+            <p className="font-bold text-sm uppercase">{user?.camera_facilities ? 'Active Monitoring' : 'Inactive'}</p>
+          </div>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${user?.camera_facilities ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+            <Clock size={20} />
+          </div>
+        </div>
+        <div className="bg-amber-50 border-2 border-amber-100 p-6 rounded-3xl flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Priority Level</p>
+            <p className="font-bold text-sm uppercase">{user?.priority_type || 'Normal'}</p>
+          </div>
+          <div className="w-8 h-8 bg-amber-600 text-white rounded-full flex items-center justify-center font-black text-xs">
+            {user?.priority_type?.[0].toUpperCase() || 'N'}
+          </div>
         </div>
       </div>
 
@@ -302,11 +342,6 @@ export default function StudentDashboard() {
                   ))
                 )}
               </div>
-              {leaderboard.length > 5 && (
-                <div className="p-3 bg-gray-50 text-center border-t border-[#141414]/5">
-                  <p className="text-[8px] font-bold uppercase opacity-40">Showing top 5 of {leaderboard.length} students</p>
-                </div>
-              )}
             </div>
           </section>
 
@@ -342,19 +377,6 @@ export default function StudentDashboard() {
                   </div>
                 ))
               )}
-            </div>
-          </section>
-
-          <section className="bg-indigo-600 text-white p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(79,70,229,0.3)]">
-            <div className="flex items-center gap-2 mb-4">
-              <BookOpen size={20} />
-              <h4 className="font-bold uppercase tracking-widest text-xs">Academic Info</h4>
-            </div>
-            <p className="text-sm font-medium opacity-90 mb-4">
-              Department: <span className="font-bold uppercase">{user?.department}</span>
-            </p>
-            <div className="text-[10px] opacity-70 leading-relaxed">
-              Welcome to the {user?.department} portal. All assessments listed here are tailored for your curriculum.
             </div>
           </section>
         </div>

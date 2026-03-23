@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Shield, User as UserIcon, Calendar, Key, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getApiUrl } from '../lib/api';
 
 export default function Login() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -36,7 +37,7 @@ export default function Login() {
 
     if (isAdmin && isForgotPassword) {
       try {
-        const res = await fetch('/api/admin/reset-password', {
+        const res = await fetch(getApiUrl('/api/admin/reset-password'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -61,7 +62,7 @@ export default function Login() {
 
     if (isAdmin && isRegistering) {
       try {
-        const res = await fetch('/api/admin/register', {
+        const res = await fetch(getApiUrl('/api/admin/register'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -85,7 +86,7 @@ export default function Login() {
       return;
     }
 
-    const endpoint = isAdmin ? '/api/admin/login' : '/api/student/login';
+    const endpoint = isAdmin ? getApiUrl('/api/admin/login') : getApiUrl('/api/student/login');
     const body = isAdmin 
       ? { email: formData.email, password: formData.password }
       : { registration_number: formData.registration_number, date_of_birth: formData.date_of_birth };

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../App';
+import { useAuth, API_BASE_URL } from '../App';
 import { User, Quiz, Attempt } from '../types';
 import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getApiUrl } from '../lib/api';
+import { db } from '../lib/firebase';
+import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, query, orderBy, setDoc } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
@@ -60,44 +61,33 @@ function StudentManager({ token }: { token: string }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [studentToDelete, setStudentToDelete] = useState<number | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<string | number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log('Fetching admin data...');
-      const [sRes, qRes, aRes] = await Promise.all([
-        fetch(getApiUrl('/api/students'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      const quizzesSnap = await getDocs(collection(db, 'quizzes'));
+      const attemptsSnap = await getDocs(collection(db, 'attempts'));
       
-      if (sRes.ok) {
-        const sData = await sRes.json();
-        console.log('Students fetched:', sData.length);
-        setStudents(sData);
-      } else {
-        console.error('Students fetch failed:', await sRes.text());
-      }
-
-      if (qRes.ok) setQuizzes(await qRes.json());
-      if (aRes.ok) setAttempts(await aRes.json());
+      setStudents(studentsSnap.docs.map(d => ({ ...d.data(), id: d.id } as User)));
+      setQuizzes(quizzesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz)));
+      setAttempts(attemptsSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Attempt)));
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Firestore Fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteStudent = async (id: number) => {
-    const res = await fetch(getApiUrl(`/api/students/${id}`), {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
+  const handleDeleteStudent = async (id: string | number) => {
+    try {
+      await deleteDoc(doc(db, 'students', id.toString()));
       fetchData();
       setStudentToDelete(null);
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
@@ -141,9 +131,7 @@ function StudentManager({ token }: { token: string }) {
         </div>
       </div>
 
-      {/* Drill-down Navigation */}
       <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm">
-        {/* Breadcrumbs */}
         <div className="flex items-center gap-2 mb-8 text-[10px] font-black uppercase tracking-widest">
           <button onClick={resetNav} className={`hover:text-indigo-600 transition-colors ${!selectedYear ? 'text-indigo-600' : 'opacity-40'}`}>Registry</button>
           {selectedYear && (
@@ -172,7 +160,6 @@ function StudentManager({ token }: { token: string }) {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Level 1: Year Selection */}
             {!selectedYear && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[1, 2, 3, 4].map(year => (
@@ -190,7 +177,6 @@ function StudentManager({ token }: { token: string }) {
               </div>
             )}
 
-            {/* Level 2: Department Selection */}
             {selectedYear && !selectedDept && (
               <div className="grid grid-cols-2 gap-6">
                 {['AIML', 'IT'].map(dept => (
@@ -208,7 +194,6 @@ function StudentManager({ token }: { token: string }) {
               </div>
             )}
 
-            {/* Level 3: Section Selection */}
             {selectedYear && selectedDept && !selectedSection && (
               <div className="grid grid-cols-2 gap-6">
                 {['A', 'B'].map(sec => (
@@ -226,7 +211,6 @@ function StudentManager({ token }: { token: string }) {
               </div>
             )}
 
-            {/* Level 4: Student List */}
             {selectedYear && selectedDept && selectedSection && (
               <div className="space-y-6">
                 <div className="relative">
@@ -389,10 +373,30 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                   <p className="font-bold text-lg">Section {student.section || 'A'}</p>
                 </div>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#141414]/5 pt-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Priority Type</p>
+                  <p className="font-bold text-sm uppercase text-amber-600">{student.priority_type || 'Normal'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Safety Secure</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${student.is_safety_secure ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <p className="font-bold text-sm uppercase">{student.is_safety_secure ? 'Enabled' : 'Disabled'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Camera Facility</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${student.camera_facilities ? 'bg-indigo-500' : 'bg-red-500'}`} />
+                    <p className="font-bold text-sm uppercase">{student.camera_facilities ? 'Enabled' : 'Disabled'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Quiz Performance Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-emerald-50 border-2 border-emerald-100 p-6 rounded-3xl text-center">
               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Completed</p>
@@ -411,7 +415,6 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
             </div>
           </div>
 
-          {/* Detailed Scores List */}
           <div className="space-y-4">
             <h5 className="text-xs font-black uppercase tracking-widest opacity-40">Detailed Quiz History</h5>
             {attempts.length === 0 ? (
@@ -489,22 +492,15 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const res = await fetch(getApiUrl('/api/students'), {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
-
-    if (res.ok) {
+    try {
+      await addDoc(collection(db, 'students'), {
+        ...formData,
+        createdAt: new Date().toISOString()
+      });
       onAdded();
       onClose();
-    } else {
-      const data = await res.json();
-      setError(data.error);
+    } catch (err: any) {
+      setError(err.message || 'Failed to add student');
     }
   };
 
@@ -631,10 +627,8 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
                 <label htmlFor="camera_facilities" className="text-[10px] font-black uppercase tracking-tight cursor-pointer">Camera Facility</label>
               </div>
             </div>
-
-            </div>
+          </div>
           {error && <p className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
-
           <button type="submit" className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all">Complete Enrollment</button>
         </form>
       </motion.div>
@@ -642,49 +636,31 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   );
 }
 
-// --- Live Quiz Control Modal ---
 function QuizManager({ token }: { token: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [students, setStudents] = useState<User[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
-  const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
+  const [editingQuizId, setEditingQuizId] = useState<string | number | null>(null);
+  const [quizToDelete, setQuizToDelete] = useState<string | number | null>(null);
 
   const fetchQuizzes = async () => {
-    const res = await fetch(getApiUrl('/api/quizzes'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setQuizzes(data);
+    const quizzesSnap = await getDocs(collection(db, 'quizzes'));
+    setQuizzes(quizzesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz)));
   };
 
-  const fetchStudents = async () => {
-    const res = await fetch(getApiUrl('/api/students'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setStudents(data);
-  };
-
-  const handleDeleteQuiz = async (id: number) => {
-    const res = await fetch(getApiUrl(`/api/quizzes/${id}`), {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
+  const handleDeleteQuiz = async (id: string | number) => {
+    try {
+      await deleteDoc(doc(db, 'quizzes', id.toString()));
       fetchQuizzes();
       setQuizToDelete(null);
+    } catch (err) {
+      console.error('Delete Quiz error:', err);
     }
   };
 
-  useEffect(() => { 
-    fetchQuizzes(); 
-    fetchStudents();
-  }, []);
+  useEffect(() => { fetchQuizzes(); }, []);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      {/* Reports & Settings Section */}
       <div className="bg-white border-2 border-[#141414] p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-8">
         <div className="flex items-center gap-2 mb-6">
           <FileText className="w-5 h-5 text-indigo-600" />
@@ -692,19 +668,14 @@ function QuizManager({ token }: { token: string }) {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Manual Report Trigger */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Manual Report Generation</h4>
-            <p className="text-[10px] font-medium opacity-60">
-              Generate and email reports for all quizzes scheduled on a specific date.
-            </p>
             <div className="flex gap-2">
               <button
                 onClick={async () => {
                   const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
                   if (!date) return;
-                  
-                  const res = await fetch(getApiUrl('/api/admin/trigger-report'), {
+                  const res = await fetch(`${API_BASE_URL}/api/admin/trigger-report`, {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
@@ -713,11 +684,8 @@ function QuizManager({ token }: { token: string }) {
                     body: JSON.stringify({ date })
                   });
                   const data = await res.json();
-                  if (res.ok) {
-                    alert('Reports sent successfully to admin emails!');
-                  } else {
-                    alert('Error: ' + data.error);
-                  }
+                  if (res.ok) alert('Reports sent successfully!');
+                  else alert('Error: ' + data.error);
                 }}
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 border-2 border-[#141414] shadow-brutal-sm flex items-center justify-center gap-2"
               >
@@ -730,11 +698,9 @@ function QuizManager({ token }: { token: string }) {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h3 className="text-xl font-bold uppercase tracking-tight">Curriculum & Quizzes</h3>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowAdd(true)} className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all border-2 border-[#141414] shadow-brutal-sm">
-            <Plus size={16} /> Create Quiz
-          </button>
-        </div>
+        <button onClick={() => setShowAdd(true)} className="bg-[#141414] text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all border-2 border-[#141414] shadow-brutal-sm">
+          <Plus size={16} /> Create Quiz
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -742,55 +708,16 @@ function QuizManager({ token }: { token: string }) {
           <div key={quiz.id} className="bg-white border-2 border-[#141414] p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex justify-between items-center group">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
-                  Year {quiz.year}
-                </span>
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
-                  {quiz.department}
-                </span>
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
-                  Sec: {quiz.section}
-                </span>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">Year {quiz.year}</span>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">{quiz.department}</span>
                 <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
               </div>
               <h4 className="font-bold text-lg">{quiz.title}</h4>
-              <p className="text-xs opacity-50">
-                {quiz.time_limit} Minutes • Multiple Choice
-                {quiz.scheduled_at && (
-                  <span className="ml-2 text-indigo-600 font-bold">
-                    • Scheduled: {new Date(quiz.scheduled_at).toLocaleString()}
-                  </span>
-                )}
-              </p>
+              <p className="text-xs opacity-50">{quiz.time_limit} Minutes</p>
             </div>
             <div className="flex items-center gap-3">
-              {(() => {
-                const expiry = quiz.expires_at || quiz.priority_category;
-                const isExpired = expiry && new Date(expiry) < new Date();
-                return isExpired && (
-                  <button 
-                    onClick={() => setEditingQuizId(quiz.id)}
-                    className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg border border-amber-200 font-bold text-[10px] uppercase tracking-widest hover:bg-amber-200 transition-all flex items-center gap-1"
-                    title="Republish Quiz"
-                  >
-                    <RefreshCw size={14} /> Republish
-                  </button>
-                );
-              })()}
-              <button 
-                onClick={() => setEditingQuizId(quiz.id)}
-                className="p-3 bg-gray-50 text-[#141414] rounded-xl border border-[#141414]/10 hover:bg-[#141414] hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                title="Edit Quiz"
-              >
-                <Pencil size={18} />
-              </button>
-              <button 
-                onClick={() => setQuizToDelete(quiz.id)}
-                className="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                title="Delete Quiz"
-              >
-                <Trash2 size={18} />
-              </button>
+              <button onClick={() => setEditingQuizId(quiz.id)} className="p-3 bg-gray-50 rounded-xl border border-[#141414]/10 hover:bg-[#141414] hover:text-white transition-all opacity-0 group-hover:opacity-100"><Pencil size={18} /></button>
+              <button onClick={() => setQuizToDelete(quiz.id)} className="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
             </div>
           </div>
         ))}
@@ -803,13 +730,8 @@ function QuizManager({ token }: { token: string }) {
         {quizToDelete && (
           <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[200]">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white border-2 border-[#141414] w-full max-w-sm rounded-3xl p-8 text-center space-y-6">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
-                <Trash2 size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold uppercase">Delete Quiz?</h3>
-                <p className="text-xs opacity-50 mt-2 font-medium">This will permanently remove the quiz and all associated questions and student attempts.</p>
-              </div>
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
+              <div><h3 className="text-xl font-bold uppercase">Delete Quiz?</h3></div>
               <div className="flex gap-3">
                 <button onClick={() => setQuizToDelete(null)} className="flex-1 py-3 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase tracking-widest">Cancel</button>
                 <button onClick={() => handleDeleteQuiz(quizToDelete)} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-700">Delete</button>
@@ -822,7 +744,7 @@ function QuizManager({ token }: { token: string }) {
   );
 }
 
-function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, onAdded: () => void, token: string, quizId?: number }) {
+function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, onAdded: () => void, token: string, quizId?: string | number }) {
   const [quizData, setQuizData] = useState({
     title: '',
     subject: '',
@@ -840,47 +762,16 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     reset_attempts: false,
     questions: [{ text: '', a: '', b: '', c: '', d: '', correct: 'a' }]
   });
-  const [showBulk, setShowBulk] = useState(false);
-  const [bulkText, setBulkText] = useState('');
   const [isLoading, setIsLoading] = useState(!!quizId);
-
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      fetch(getApiUrl(`/api/quizzes/${quizId}`), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        let sDate = '';
-        let sTime = '';
-        if (data.scheduled_at) {
-          const d = new Date(data.scheduled_at);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          sDate = `${year}-${month}-${day}`;
-          sTime = `${hours}:${minutes}`;
-        }
-
-        let eDate = '';
-        let eTime = '';
-        const expiryVal = data.expires_at || data.priority_category; // Fallback to priority_category
-        if (expiryVal) {
-          const d = new Date(expiryVal);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          eDate = `${year}-${month}-${day}`;
-          eTime = `${hours}:${minutes}`;
-        }
-
+      getDoc(doc(db, 'quizzes', quizId.toString()))
+      .then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
           setQuizData({
             title: data.title,
             subject: data.subject,
@@ -889,119 +780,42 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
             year: data.year,
             department: data.department || 'AIML',
             section: data.section || 'Both',
-            scheduled_date: sDate,
-            scheduled_time: sTime,
-            expiry_date: eDate,
-            expiry_time: eTime,
+            scheduled_date: data.scheduled_at ? data.scheduled_at.split('T')[0] : '',
+            scheduled_time: data.scheduled_at ? data.scheduled_at.split('T')[1].substring(0, 5) : '',
+            expiry_date: data.expires_at ? data.expires_at.split('T')[0] : '',
+            expiry_time: data.expires_at ? data.expires_at.split('T')[1].substring(0, 5) : '',
             is_proctored: data.is_proctored || false,
             strict_mode: data.strict_mode || false,
             reset_attempts: false,
-            questions: data.questions.map((q: any) => ({
-              text: q.question_text,
-              a: q.option_a,
-              b: q.option_b,
-              c: q.option_c,
-              d: q.option_d,
-              correct: q.correct_answer
-            }))
+            questions: data.questions || []
           });
-        setIsLoading(false);
+        }
       })
-      .catch(err => {
-        console.error(err);
-        setError('Failed to load quiz data');
-        setIsLoading(false);
-      });
+      .finally(() => setIsLoading(false));
     }
-  }, [quizId, token]);
-
-  const addQuestion = () => {
-    setQuizData({ ...quizData, questions: [...quizData.questions, { text: '', a: '', b: '', c: '', d: '', correct: 'a' }] });
-  };
-
-  const addMultipleQuestions = (count: number) => {
-    const newQs = Array(count).fill(null).map(() => ({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }));
-    setQuizData({ ...quizData, questions: [...quizData.questions, ...newQs] });
-  };
-
-  const handleBulkImport = () => {
-    const lines = bulkText.split('\n').filter(l => l.trim());
-    const newQs = lines.map(line => {
-      const [text, a, b, c, d, correct] = line.split('|').map(s => s.trim());
-      return { 
-        text: text || '', 
-        a: a || '', 
-        b: b || '', 
-        c: c || '', 
-        d: d || '', 
-        correct: (correct || 'a').toLowerCase() 
-      };
-    });
-    if (newQs.length > 0) {
-      setQuizData({ ...quizData, questions: [...quizData.questions, ...newQs] });
-      setShowBulk(false);
-      setBulkText('');
-    }
-  };
-
-  const removeQuestion = (index: number) => {
-    if (quizData.questions.length > 1) {
-      const newQuestions = quizData.questions.filter((_, i) => i !== index);
-      setQuizData({ ...quizData, questions: newQuestions });
-    }
-  };
-
-  const duplicateQuestion = (index: number) => {
-    const questionToDuplicate = { ...quizData.questions[index] };
-    const newQuestions = [...quizData.questions];
-    newQuestions.splice(index + 1, 0, questionToDuplicate);
-    setQuizData({ ...quizData, questions: newQuestions });
-  };
-
-  const updateQuestion = (index: number, field: string, value: string) => {
-    const newQuestions = [...quizData.questions];
-    (newQuestions[index] as any)[field] = value;
-    setQuizData({ ...quizData, questions: newQuestions });
-  };
+  }, [quizId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    const url = quizId ? getApiUrl(`/api/quizzes/${quizId}`) : getApiUrl('/api/quizzes');
-    const method = quizId ? 'PUT' : 'POST';
-
-    const scheduled_at = (quizData.scheduled_date && quizData.scheduled_time) 
-      ? new Date(`${quizData.scheduled_date}T${quizData.scheduled_time}`).toISOString()
-      : null;
-
-    const expires_at = (quizData.expiry_date && quizData.expiry_time)
-      ? new Date(`${quizData.expiry_date}T${quizData.expiry_time}`).toISOString()
-      : null;
-
-    const payload = {
-      ...quizData,
-      scheduled_at,
-      expires_at
-    };
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        onAdded();
-        onClose();
+      const quizRef = quizId ? doc(db, 'quizzes', quizId.toString()) : collection(db, 'quizzes');
+      const data = {
+        ...quizData,
+        scheduled_at: quizData.scheduled_date ? `${quizData.scheduled_date}T${quizData.scheduled_time || '00:00'}:00` : null,
+        expires_at: quizData.expiry_date ? `${quizData.expiry_date}T${quizData.expiry_time || '00:00'}:00` : null,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (quizId) {
+        await updateDoc(quizRef as any, data);
       } else {
-        const data = await res.json();
-        setError(data.error || 'Failed to save quiz');
+        await addDoc(collection(db, 'quizzes'), { ...data, createdAt: new Date().toISOString() });
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+      onAdded();
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to save quiz: ' + err.message);
     }
   };
 
@@ -1011,469 +825,65 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
     <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-4xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center">
-          <h3 className="text-xl font-bold uppercase tracking-tight">{quizId ? 'Edit Quiz' : 'Quiz Architect'}</h3>
+          <h3 className="text-xl font-bold uppercase tracking-tight">Quiz Architect</h3>
           <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Quiz Title</label>
-              <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.title} onChange={e => setQuizData({...quizData, title: e.target.value})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Subject</label>
-              <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.subject} onChange={e => setQuizData({...quizData, subject: e.target.value})} />
-            </div>
+          <div className="grid grid-cols-2 gap-4">
+            <input required placeholder="Title" className="p-3 border-2 border-[#141414] rounded-xl" value={quizData.title} onChange={e => setQuizData({...quizData, title: e.target.value})} />
+            <input required placeholder="Subject" className="p-3 border-2 border-[#141414] rounded-xl" value={quizData.subject} onChange={e => setQuizData({...quizData, subject: e.target.value})} />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Time (Min)</label>
-              <input type="number" required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.time_limit || ''} onChange={e => setQuizData({...quizData, time_limit: parseInt(e.target.value) || 0})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Q-Timer (Sec)</label>
-              <input type="number" placeholder="0 = No limit" className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.question_timer || ''} onChange={e => setQuizData({...quizData, question_timer: parseInt(e.target.value) || 0})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Target Year</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.year || 1} onChange={e => setQuizData({...quizData, year: parseInt(e.target.value) || 1})}>
-                <option value={1}>1st Year</option>
-                <option value={2}>2nd Year</option>
-                <option value={3}>3rd Year</option>
-                <option value={4}>4th Year</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Department</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.department} onChange={e => setQuizData({...quizData, department: e.target.value})}>
-                <option value="AIML">AIML</option>
-                <option value="IT">IT</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Section</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.section} onChange={e => setQuizData({...quizData, section: e.target.value as any})}>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
-                <option value="Both">Both Sections</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Proctored</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.is_proctored ? 'true' : 'false'} onChange={e => setQuizData({...quizData, is_proctored: e.target.value === 'true'})}>
-                <option value="false">No</option>
-                <option value="true">Yes (Camera)</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Strict Mode</label>
-              <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={quizData.strict_mode ? 'true' : 'false'} onChange={e => setQuizData({...quizData, strict_mode: e.target.value === 'true'})}>
-                <option value="false">No</option>
-                <option value="true">Yes (Tab Lock)</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Schedule Date</label>
-              <input 
-                type="date" 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
-                value={quizData.scheduled_date} 
-                onChange={e => setQuizData({...quizData, scheduled_date: e.target.value})} 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Schedule Time</label>
-              <input 
-                type="time" 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
-                value={quizData.scheduled_time} 
-                onChange={e => setQuizData({...quizData, scheduled_time: e.target.value})} 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Expiry Date</label>
-              <input 
-                type="date" 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
-                value={quizData.expiry_date} 
-                onChange={e => setQuizData({...quizData, expiry_date: e.target.value})} 
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Expiry Time</label>
-              <input 
-                type="time" 
-                className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white" 
-                value={quizData.expiry_time} 
-                onChange={e => setQuizData({...quizData, expiry_time: e.target.value})} 
-              />
-            </div>
-            {quizId && (
-              <div className="space-y-1 flex items-center gap-3 pt-6">
-                <input 
-                  type="checkbox" 
-                  id="reset_attempts"
-                  className="w-5 h-5 accent-[#141414]"
-                  checked={quizData.reset_attempts}
-                  onChange={e => setQuizData({...quizData, reset_attempts: e.target.checked})}
-                />
-                <label htmlFor="reset_attempts" className="text-[10px] font-black uppercase tracking-tight cursor-pointer text-red-600">Reset All Student Attempts (Republish)</label>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h4 className="text-sm font-bold uppercase tracking-widest opacity-50">Questions ({quizData.questions.length})</h4>
-              <div className="flex items-center gap-4">
-                <button type="button" onClick={() => setShowBulk(!showBulk)} className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 hover:underline">Bulk Import</button>
-                <button type="button" onClick={() => addMultipleQuestions(5)} className="text-[10px] font-bold uppercase tracking-widest opacity-50 hover:opacity-100">+ Add 5 Questions</button>
-                <button type="button" onClick={addQuestion} className="text-xs font-bold uppercase tracking-widest text-indigo-600 hover:underline">+ Add Question</button>
-              </div>
-            </div>
-
-            {showBulk && (
-              <div className="p-6 bg-indigo-50 border-2 border-indigo-100 rounded-2xl space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Bulk Import Format</label>
-                  <p className="text-[10px] opacity-50">Question | Option A | Option B | Option C | Option D | Correct (A/B/C/D)</p>
-                  <textarea 
-                    className="w-full p-3 border-2 border-indigo-200 rounded-xl font-mono text-xs" 
-                    rows={5} 
-                    placeholder="What is 2+2? | 3 | 4 | 5 | 6 | B"
-                    value={bulkText}
-                    onChange={e => setBulkText(e.target.value)}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setShowBulk(false)} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest opacity-50">Cancel</button>
-                  <button type="button" onClick={handleBulkImport} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest">Import Questions</button>
-                </div>
-              </div>
-            )}
-
-            {quizData.questions.map((q, i) => (
-              <div key={i} className="p-6 bg-gray-50 border-2 border-[#141414]/10 rounded-2xl space-y-4 relative group">
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    type="button" 
-                    onClick={() => duplicateQuestion(i)}
-                    className="p-2 bg-white border border-[#141414]/10 rounded-lg text-indigo-600 hover:bg-indigo-50"
-                    title="Duplicate Question"
-                  >
-                    <Plus size={14} />
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => removeQuestion(i)}
-                    className="p-2 bg-white border border-[#141414]/10 rounded-lg text-red-500 hover:bg-red-50"
-                    title="Remove Question"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Question {i + 1}</label>
-                  <textarea required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={q.text} onChange={e => updateQuestion(i, 'text', e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {['a', 'b', 'c', 'd'].map(opt => (
-                    <div key={opt} className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Option {opt.toUpperCase()}</label>
-                      <input required className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={(q as any)[opt]} onChange={e => updateQuestion(i, opt, e.target.value)} />
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Correct Answer</label>
-                  <select className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium" value={q.correct} onChange={e => updateQuestion(i, 'correct', e.target.value)}>
-                    <option value="a">Option A</option>
-                    <option value="b">Option B</option>
-                    <option value="c">Option C</option>
-                    <option value="d">Option D</option>
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <div className="p-4 bg-red-50 border-2 border-red-100 rounded-2xl flex items-center gap-3 text-red-600">
-              <AlertCircle size={20} />
-              <p className="text-xs font-bold uppercase tracking-wide">{error}</p>
-            </div>
-          )}
-
-          <button type="submit" className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all">
-            {quizId ? 'Save Changes' : 'Publish Quiz'}
-          </button>
+          <button type="submit" className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest">Save Quiz</button>
         </form>
       </motion.div>
     </div>
   );
 }
 
-// --- Leaderboard View ---
 function LeaderboardView({ token }: { token: string }) {
   const [data, setData] = useState<any[]>([]);
-  const [filters, setFilters] = useState({ year: '', department: '', section: '' });
   const [loading, setLoading] = useState(true);
 
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.year) params.append('year', filters.year);
-      if (filters.department) params.append('department', filters.department);
-      if (filters.section) params.append('section', filters.section);
-
-      const res = await fetch(getApiUrl(`/api/leaderboard?${params.toString()}`), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchLeaderboard();
-  }, [filters]);
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-brutal-sm flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[150px]">
-          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Year</label>
-          <select 
-            value={filters.year} 
-            onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
-          >
-            <option value="">All Years</option>
-            <option value="1">1st Year</option>
-            <option value="2">2nd Year</option>
-            <option value="3">3rd Year</option>
-            <option value="4">4th Year</option>
-          </select>
-        </div>
-        <div className="flex-1 min-w-[150px]">
-          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Department</label>
-          <select 
-            value={filters.department} 
-            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
-          >
-            <option value="">All Departments</option>
-            <option value="AIML">AIML</option>
-            <option value="CSE">CSE</option>
-            <option value="ECE">ECE</option>
-            <option value="IT">IT</option>
-            <option value="MECH">MECH</option>
-          </select>
-        </div>
-        <div className="flex-1 min-w-[150px]">
-          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Section</label>
-          <select 
-            value={filters.section} 
-            onChange={(e) => setFilters({ ...filters, section: e.target.value })}
-            className="w-full p-3 bg-gray-50 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase"
-          >
-            <option value="">All Sections</option>
-            <option value="A">Section A</option>
-            <option value="B">Section B</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b-2 border-[#141414]">
-                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Rank</th>
-                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Student</th>
-                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Class</th>
-                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Total Score</th>
-                <th className="p-6 text-[10px] font-bold uppercase tracking-widest opacity-50">Accuracy</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="p-12 text-center">
-                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-xs font-bold uppercase opacity-30">Fetching Leaderboard...</p>
-                  </td>
-                </tr>
-              ) : data.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-12 text-center">
-                    <p className="text-xs font-bold uppercase opacity-30">No data found for selected filters</p>
-                  </td>
-                </tr>
-              ) : (
-                data.map((row, i) => (
-                  <tr key={i} className="border-b border-[#141414]/5 hover:bg-gray-50 transition-colors">
-                    <td className="p-6">
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                        i === 0 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                        i === 1 ? 'bg-gray-100 text-gray-700 border border-gray-200' :
-                        i === 2 ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                        'text-gray-400'
-                      }`}>
-                        {i + 1}
-                      </span>
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold">{row.name}</p>
-                        {row.priority_type && row.priority_type !== 'normal' && (
-                          <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-amber-200">
-                            {row.priority_type}
-                          </span>
-                        )}
-                        {row.malpracticeCount > 0 && (
-                          <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-red-200 animate-pulse">
-                            Malpractice: {row.malpracticeCount}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] font-mono opacity-50">{row.registration_number}</p>
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-100">
-                          {row.year}yr {row.department}
-                        </span>
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
-                          Sec {row.section}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-lg">{row.totalScore}</span>
-                        <span className="text-[10px] opacity-30">Points</span>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden max-w-[100px]">
-                          <div className="h-full bg-emerald-500" style={{ width: `${row.percentage}%` }} />
-                        </div>
-                        <span className="text-xs font-bold">{Math.round(row.percentage)}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function NotificationCenter({ token }: { token: string }) {
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  const handleSend = async () => {
-    if (!message.trim()) return;
-    setSending(true);
-    setStatus(null);
-    try {
-      const res = await fetch(getApiUrl('/api/notifications/send-manual'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ message })
-      });
-      if (res.ok) {
-        setStatus({ type: 'success', text: 'Notification sent successfully to all registered students!' });
-        setMessage('');
-      } else {
-        throw new Error('Failed to send notification');
+    const fetchLeaderboard = async () => {
+      try {
+        const attemptsSnap = await getDocs(collection(db, 'attempts'));
+        const studentScores: Record<string, { name: string, totalScore: number }> = {};
+        
+        attemptsSnap.docs.forEach(d => {
+          const attempt = d.data();
+          const studentId = attempt.student_id;
+          if (!studentScores[studentId]) {
+            studentScores[studentId] = { name: attempt.name, totalScore: 0 };
+          }
+          studentScores[studentId].totalScore += attempt.score;
+        });
+        
+        const sorted = Object.values(studentScores).sort((a, b) => b.totalScore - a.totalScore);
+        setData(sorted);
+      } catch (err) {
+        console.error('Leaderboard fetch error:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setStatus({ type: 'error', text: 'Error sending notification. Please check your bot token.' });
-    } finally {
-      setSending(false);
-    }
-  };
+    };
+    fetchLeaderboard();
+  }, []);
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal max-w-2xl mx-auto"
-    >
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-brutal-sm">
-          <Send size={24} />
-        </div>
-        <div>
-          <h3 className="text-2xl font-black uppercase tracking-tighter">Telegram Alerts</h3>
-          <p className="text-xs font-bold uppercase opacity-40 tracking-widest">Send manual notifications to students</p>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Message Content</label>
-          <textarea 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message here... (e.g., Important update regarding tomorrow's quiz!)"
-            className="w-full p-6 bg-gray-50 border-2 border-[#141414] rounded-2xl font-medium min-h-[150px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
-          />
-        </div>
-
-        {status && (
-          <div className={`p-4 rounded-xl border-2 flex items-center gap-3 ${status.type === 'success' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
-            <AlertCircle size={18} />
-            <p className="text-xs font-bold uppercase tracking-wide">{status.text}</p>
-          </div>
-        )}
-
-        <button 
-          onClick={handleSend}
-          disabled={sending || !message.trim()}
-          className="w-full bg-[#141414] text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#2a2a2a] transition-all shadow-brutal-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {sending ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <>
-              <Send size={18} />
-              Send Notification
-            </>
-          )}
-        </button>
-
-        <div className="pt-6 border-t border-[#141414]/5">
-          <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
-            <ShieldCheck className="text-indigo-600 mt-0.5" size={16} />
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-900">Security Note</p>
-              <p className="text-[10px] font-medium text-indigo-700 leading-relaxed">
-                This will send a message to all students who have registered their Telegram Chat ID in their dashboard. 
-                Ensure your <code className="bg-white px-1 rounded">TELEGRAM_BOT_TOKEN</code> is correctly set in the environment.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+    <div className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm">
+      <table className="w-full text-left">
+        <thead><tr className="bg-gray-50 border-b-2 border-[#141414]"><th className="p-6">Rank</th><th className="p-6">Student</th><th className="p-6">Score</th></tr></thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i} className="border-b border-[#141414]/5">
+              <td className="p-6">{i + 1}</td>
+              <td className="p-6">{row.name}</td>
+              <td className="p-6 font-bold">{row.totalScore}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

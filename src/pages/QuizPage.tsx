@@ -5,6 +5,7 @@ import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Shield, Camera, UserCheck, Layout, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import emailjs from '@emailjs/browser';
+import { getApiUrl } from '../lib/api';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -56,7 +57,7 @@ export default function QuizPage() {
     const checkAttemptAndFetchQuiz = async () => {
       try {
         // Check if already attempted
-        const rRes = await fetch('/api/student/results', {
+        const rRes = await fetch(getApiUrl('/api/student/results'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const results = await rRes.json();
@@ -69,7 +70,7 @@ export default function QuizPage() {
         }
 
         // Fetch quiz
-        const qRes = await fetch(`/api/quizzes/${id}`, {
+        const qRes = await fetch(getApiUrl(`/api/quizzes/${id}`), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -278,7 +279,7 @@ export default function QuizPage() {
     });
 
     try {
-      const response = await fetch('/api/attempts', {
+      const response = await fetch(getApiUrl('/api/attempts'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

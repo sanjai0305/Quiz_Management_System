@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -7,6 +8,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import * as XLSX from 'xlsx';
 import nodemailer from 'nodemailer';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -77,6 +79,7 @@ async function sendCompletionEmail(adminEmail: string, quizTitle: string, groupI
 
 async function startServer() {
   const app = express();
+  app.use(cors());
   app.use(express.json({ limit: '10mb' }));
 
   // --- Auth Middleware ---
@@ -871,24 +874,23 @@ async function startServer() {
   } else {
     // In production (Railway/Vercel), serve static files
     const distPath = path.resolve(process.cwd(), 'dist');
+    const indexPath = path.join(distPath, 'index.html');
     
     // Check if dist exists before trying to serve
-    app.use(express.static(distPath));
-    
-    // Fallback to index.html for SPA routing
-    app.get('*', (req, res) => {
-      // If it's an API route that wasn't caught, don't serve index.html
-      if (req.url.startsWith('/api/')) {
-        return res.status(404).json({ error: 'API route not found' });
-      }
-      
-      const indexPath = path.join(distPath, 'index.html');
-      res.sendFile(indexPath, (err) => {
-        if (err) {
-          res.status(500).send("Build files not found. Please ensure 'npm run build' was executed.");
+    if (fs.existsSync(indexPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        if (req.url.startsWith('/api/')) {
+          return res.status(404).json({ error: 'API route not found' });
         }
+        res.sendFile(indexPath);
       });
-    });
+    } else {
+      // If dist doesn't exist, this is likely an API-only deployment
+      app.get('/', (req, res) => {
+        res.send('Quiz Management System API is running. Connect your frontend to this URL.');
+      });
+    }
   }
 
   const PORT = process.env.PORT || 3000;

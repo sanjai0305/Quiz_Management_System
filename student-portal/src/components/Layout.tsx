@@ -1,9 +1,8 @@
 import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { LogOut, User as UserIcon, ShieldCheck, Accessibility, Shield } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { AccessibilityMenu } from './AccessibilityMenu';
-import { Link } from 'react-router-dom';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -22,21 +21,12 @@ export function Layout() {
             <ShieldCheck size={24} />
           </div>
           <div>
-            <h1 className="font-bold text-xl tracking-tight">MAHENDRA INSTITUTE OF TECHNOLOGY</h1>
+            <h1 className="font-bold text-xl tracking-tight">MIT - STUDENT PORTAL</h1>
             <p className="text-[10px] uppercase tracking-widest opacity-50 font-semibold text-indigo-600">Secure Examination Portal</p>
           </div>
         </div>
 
         <div className="flex items-center gap-6">
-          {user?.role === 'admin' && (
-            <Link 
-              to="/admin/security" 
-              className="flex items-center gap-2 px-4 py-2 bg-[#141414]/5 hover:bg-[#141414]/10 rounded-lg transition-colors text-sm font-bold uppercase tracking-tight"
-            >
-              <Shield size={18} />
-              <span>Security</span>
-            </Link>
-          )}
           <div className="flex items-center gap-3 border-l border-[#141414]/10 pl-6">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold">{user?.name}</p>
@@ -61,7 +51,7 @@ export function Layout() {
 
       <footer className="mt-auto py-8 border-t border-[#141414]/5 text-center">
         <p className="text-xs text-[#141414]/40 font-medium uppercase tracking-widest">
-          &copy; 2026 MAHENDRA INSTITUTE OF TECHNOLOGY • Secure • Accessible • Intelligent
+          &copy; 2026 MAHENDRA INSTITUTE OF TECHNOLOGY • Student Portal
         </p>
       </footer>
     </div>
