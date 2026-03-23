@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -77,6 +78,7 @@ async function sendCompletionEmail(adminEmail: string, quizTitle: string, groupI
 
 async function startServer() {
   const app = express();
+  app.use(cors());
   app.use(express.json({ limit: '10mb' }));
 
   // --- Auth Middleware ---
