@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, API_BASE_URL } from '../App';
 import { Shield, User as UserIcon, Calendar, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { db, auth } from '../lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -26,23 +29,28 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/student/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          registration_number: formData.registration_number, 
-          date_of_birth: formData.date_of_birth 
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        login(data.token, { ...data.user, role: 'student' });
+      const q = query(
+        collection(db, 'students'), 
+        where('registration_number', '==', formData.registration_number),
+        where('date_of_birth', '==', formData.date_of_birth)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const studentDoc = querySnapshot.docs[0];
+        const studentData = studentDoc.data();
+        
+        // Use anonymous auth to maintain a session in Firebase for the student
+        await signInAnonymously(auth);
+        
+        login('student-token', { ...studentData, id: studentDoc.id, role: 'student' } as any);
         navigate('/student');
       } else {
-        setError(data.error || 'Login failed');
+        setError('Invalid registration number or date of birth');
       }
-    } catch (err) {
-      setError('Connection error');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }

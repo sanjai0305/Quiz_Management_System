@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build",
-    "start": "tsx server.ts",
+    "dev": "echo 'Run \"cd admin-portal && npm run dev\" for Admin OR \"cd student-portal && npm run dev\" for Student'",
+    "start": "echo 'Run \"cd admin-portal && npm start\" for Admin OR \"cd student-portal && npm start\" for Student'",
+    "admin": "cd admin-portal && npm run dev",
+    "student": "cd student-portal && npm run dev",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

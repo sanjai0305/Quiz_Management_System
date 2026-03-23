@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { User } from './types';
 import Login from './pages/Login';
@@ -59,6 +61,34 @@ export default function App() {
     }
   });
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // For students, we might need to fetch more data from Firestore
+        // For now, we reuse the stored user or basic info
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+          setToken('firebase-managed');
+        } else {
+          // If no saved user but firebase user exists, we might be in a weird state
+          // or just logged in via Firebase Auth directly
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'Student',
+            role: 'student'
+          } as any);
+          setToken('firebase-managed');
+        }
+      } else {
+        setUser(null);
+        setToken(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
@@ -66,7 +96,8 @@ export default function App() {
     localStorage.setItem('user', JSON.stringify(newUser));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut(auth);
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
