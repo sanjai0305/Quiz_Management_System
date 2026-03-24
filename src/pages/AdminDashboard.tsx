@@ -4,6 +4,7 @@ import { User, Quiz, Attempt } from '../types';
 import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
@@ -89,23 +90,19 @@ function StudentManager({ token }: { token: string }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log('Fetching admin data...');
+      console.log('Fetching admin data via Supabase...');
       const [sRes, qRes, aRes] = await Promise.all([
-        fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
+        supabase.from('students').select('*').order('name'),
+        supabase.from('quizzes').select('*').order('created_at', { ascending: false }),
+        supabase.from('attempts').select('*').order('attempt_date', { ascending: false })
       ]);
       
-      if (sRes.ok) {
-        const sData = await sRes.json();
-        console.log('Students fetched:', sData.length);
-        setStudents(sData);
-      } else {
-        console.error('Students fetch failed:', await sRes.text());
+      if (sRes.data) {
+        console.log('Students fetched:', sRes.data.length);
+        setStudents(sRes.data);
       }
-
-      if (qRes.ok) setQuizzes(await qRes.json());
-      if (aRes.ok) setAttempts(await aRes.json());
+      if (qRes.data) setQuizzes(qRes.data);
+      if (aRes.data) setAttempts(aRes.data);
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -114,11 +111,8 @@ function StudentManager({ token }: { token: string }) {
   };
 
   const handleDeleteStudent = async (id: number) => {
-    const res = await fetch(`/api/students/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
+    const { error } = await supabase.from('students').delete().eq('id', id);
+    if (!error) {
       fetchData();
       setStudentToDelete(null);
     }
@@ -398,7 +392,7 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                 <h4 className="text-3xl font-black uppercase tracking-tighter leading-none">{student.name}</h4>
                 <p className="text-sm font-mono font-bold text-indigo-600 mt-2">{student.registration_number}</p>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-bold uppercase opacity-30">Academic Year</p>
                   <p className="font-bold text-lg">{student.year || 1}{student.year === 1 ? 'st' : student.year === 2 ? 'nd' : student.year === 3 ? 'rd' : 'th'} Year</p>
@@ -410,6 +404,26 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
                 <div>
                   <p className="text-[10px] font-bold uppercase opacity-30">Section</p>
                   <p className="font-bold text-lg">Section {student.section || 'A'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Priority Type</p>
+                  <p className="font-bold text-lg capitalize">{student.priority_type || 'Normal'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Security Level</p>
+                  <p className="font-bold text-lg capitalize">{student.os_security_level || 'Standard'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase opacity-30">Current Stage</p>
+                  <p className="font-bold text-lg">Stage {student.stage || 1}</p>
+                </div>
+              </div>
+              <div className="flex gap-4 pt-2">
+                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${student.is_safety_secure ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  {student.is_safety_secure ? 'Safety Secure' : 'Safety Disabled'}
+                </div>
+                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${student.camera_facilities ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700'}`}>
+                  {student.camera_facilities ? 'Camera Active' : 'No Camera'}
                 </div>
               </div>
             </div>
@@ -494,7 +508,9 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
     section: 'A' as 'A' | 'B',
     priority_type: 'normal' as 'normal' | 'children' | 'disability' | 'senior',
     is_safety_secure: true,
-    camera_facilities: true
+    camera_facilities: true,
+    os_security_level: 'standard' as 'standard' | 'high' | 'ultra',
+    stage: 1
   });
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -512,22 +528,21 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
-    const res = await fetch('/api/students', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
+    try {
+      const { error: insertError } = await supabase
+        .from('students')
+        .insert([formData]);
 
-    if (res.ok) {
-      onAdded();
-      onClose();
-    } else {
-      const data = await res.json();
-      setError(data.error);
+      if (insertError) {
+        setError(insertError.message);
+      } else {
+        onAdded();
+        onClose();
+      }
+    } catch (err) {
+      setError('Connection error');
     }
   };
 
@@ -655,7 +670,35 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">OS Security Level</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.os_security_level}
+                  onChange={e => setFormData({...formData, os_security_level: e.target.value as any})}
+                >
+                  <option value="standard">Standard</option>
+                  <option value="high">High Security</option>
+                  <option value="ultra">Ultra Secure</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">Initial Stage</label>
+                <select 
+                  className="w-full p-3 border-2 border-[#141414] rounded-xl font-medium bg-white"
+                  value={formData.stage}
+                  onChange={e => setFormData({...formData, stage: parseInt(e.target.value) || 1})}
+                >
+                  <option value={1}>Stage 1</option>
+                  <option value={2}>Stage 2</option>
+                  <option value={3}>Stage 3</option>
+                  <option value={4}>Stage 4</option>
+                </select>
+              </div>
             </div>
+          </div>
+
           {error && <p className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
 
           <button type="submit" className="w-full bg-[#141414] text-white py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-[#2a2a2a] transition-all">Complete Enrollment</button>
@@ -674,27 +717,24 @@ function QuizManager({ token }: { token: string }) {
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
-    const res = await fetch('/api/quizzes', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setQuizzes(data);
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setQuizzes(data);
   };
 
   const fetchStudents = async () => {
-    const res = await fetch('/api/students', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setStudents(data);
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .order('name');
+    if (data) setStudents(data);
   };
 
   const handleDeleteQuiz = async (id: number) => {
-    const res = await fetch(`/api/quizzes/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
+    const { error } = await supabase.from('quizzes').delete().eq('id', id);
+    if (!error) {
       fetchQuizzes();
       setQuizToDelete(null);
     }
@@ -872,54 +912,55 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      fetch(`/api/quizzes/${quizId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        let sDate = '';
-        let sTime = '';
-        if (data.scheduled_at) {
-          const d = new Date(data.scheduled_at);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          sDate = `${year}-${month}-${day}`;
-          sTime = `${hours}:${minutes}`;
-        }
+      const fetchQuizData = async () => {
+        try {
+          const { data: quiz, error: qError } = await supabase
+            .from('quizzes')
+            .select('*')
+            .eq('id', quizId)
+            .single();
+          
+          if (qError) throw qError;
 
-        let eDate = '';
-        let eTime = '';
-        const expiryVal = data.expires_at || data.priority_category; // Fallback to priority_category
-        if (expiryVal) {
-          const d = new Date(expiryVal);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          eDate = `${year}-${month}-${day}`;
-          eTime = `${hours}:${minutes}`;
-        }
+          const { data: questions, error: qsError } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('quiz_id', quizId);
+          
+          if (qsError) throw qsError;
+
+          let sDate = '';
+          let sTime = '';
+          if (quiz.scheduled_at) {
+            const d = new Date(quiz.scheduled_at);
+            sDate = d.toISOString().split('T')[0];
+            sTime = d.toTimeString().substring(0, 5);
+          }
+
+          let eDate = '';
+          let eTime = '';
+          if (quiz.expires_at) {
+            const d = new Date(quiz.expires_at);
+            eDate = d.toISOString().split('T')[0];
+            eTime = d.toTimeString().substring(0, 5);
+          }
 
           setQuizData({
-            title: data.title,
-            subject: data.subject,
-            time_limit: data.time_limit,
-            question_timer: data.question_timer || 0,
-            year: data.year,
-            department: data.department || 'AIML',
-            section: data.section || 'Both',
+            title: quiz.title,
+            subject: quiz.subject,
+            time_limit: quiz.time_limit,
+            question_timer: quiz.question_timer || 0,
+            year: quiz.year,
+            department: quiz.department || 'AIML',
+            section: quiz.section || 'Both',
             scheduled_date: sDate,
             scheduled_time: sTime,
             expiry_date: eDate,
             expiry_time: eTime,
-            is_proctored: data.is_proctored || false,
-            strict_mode: data.strict_mode || false,
+            is_proctored: quiz.is_proctored || false,
+            strict_mode: quiz.strict_mode || false,
             reset_attempts: false,
-            questions: data.questions.map((q: any) => ({
+            questions: (questions || []).map((q: any) => ({
               text: q.question_text,
               a: q.option_a,
               b: q.option_b,
@@ -928,15 +969,16 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
               correct: q.correct_answer
             }))
           });
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setError('Failed to load quiz data');
-        setIsLoading(false);
-      });
+        } catch (err) {
+          console.error(err);
+          setError('Failed to load quiz data');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchQuizData();
     }
-  }, [quizId, token]);
+  }, [quizId]);
 
   const addQuestion = () => {
     setQuizData({ ...quizData, questions: [...quizData.questions, { text: '', a: '', b: '', c: '', d: '', correct: 'a' }] });
@@ -990,8 +1032,6 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const url = quizId ? `/api/quizzes/${quizId}` : '/api/quizzes';
-    const method = quizId ? 'PUT' : 'POST';
 
     const scheduled_at = (quizData.scheduled_date && quizData.scheduled_time) 
       ? new Date(`${quizData.scheduled_date}T${quizData.scheduled_time}`).toISOString()
@@ -1001,30 +1041,71 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
       ? new Date(`${quizData.expiry_date}T${quizData.expiry_time}`).toISOString()
       : null;
 
-    const payload = {
-      ...quizData,
+    const quizPayload = {
+      title: quizData.title,
+      subject: quizData.subject,
+      time_limit: quizData.time_limit,
+      question_timer: quizData.question_timer,
+      year: quizData.year,
+      department: quizData.department,
+      section: quizData.section,
+      is_proctored: quizData.is_proctored,
+      strict_mode: quizData.strict_mode,
       scheduled_at,
       expires_at
     };
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        onAdded();
-        onClose();
+      let currentQuizId = quizId;
+
+      if (quizId) {
+        // Update existing quiz
+        const { error: updateError } = await supabase
+          .from('quizzes')
+          .update(quizPayload)
+          .eq('id', quizId);
+        
+        if (updateError) throw updateError;
+
+        if (quizData.reset_attempts) {
+          await supabase.from('attempts').delete().eq('quiz_id', quizId);
+        }
+
+        // Delete old questions and insert new ones (simplest way for now)
+        await supabase.from('questions').delete().eq('quiz_id', quizId);
       } else {
-        const data = await res.json();
-        setError(data.error || 'Failed to save quiz');
+        // Create new quiz
+        const { data: newQuiz, error: insertError } = await supabase
+          .from('quizzes')
+          .insert([quizPayload])
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        currentQuizId = newQuiz.id;
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+
+      // Insert questions
+      const questionsPayload = quizData.questions.map(q => ({
+        quiz_id: currentQuizId,
+        question_text: q.question_text,
+        option_a: q.option_a,
+        option_b: q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        correct_answer: q.correct_answer
+      }));
+
+      const { error: qError } = await supabase
+        .from('questions')
+        .insert(questionsPayload);
+
+      if (qError) throw qError;
+
+      onAdded();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save quiz');
     }
   };
 
@@ -1247,16 +1328,36 @@ function LeaderboardView({ token }: { token: string }) {
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filters.year) params.append('year', filters.year);
-      if (filters.department) params.append('department', filters.department);
-      if (filters.section) params.append('section', filters.section);
+      let query = supabase.from('students').select('*');
+      if (filters.year) query = query.eq('year', parseInt(filters.year));
+      if (filters.department) query = query.eq('department', filters.department);
+      if (filters.section) query = query.eq('section', filters.section);
 
-      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const { data: students, error: sError } = await query;
+      if (sError) throw sError;
+
+      const { data: attempts, error: aError } = await supabase.from('attempts').select('*');
+      if (aError) throw aError;
+
+      // Calculate leaderboard
+      const leaderboardData = students.map(student => {
+        const studentAttempts = attempts.filter(a => a.student_id === student.id);
+        const totalScore = studentAttempts.reduce((acc, curr) => acc + curr.score, 0);
+        const totalPossible = studentAttempts.reduce((acc, curr) => acc + curr.total_questions, 0);
+        const percentage = totalPossible > 0 ? (totalScore / totalPossible) * 100 : 0;
+        const malpracticeCount = studentAttempts.reduce((acc, curr) => acc + (curr.malpractice_count || 0), 0);
+
+        return {
+          ...student,
+          totalScore,
+          percentage,
+          malpracticeCount
+        };
       });
-      const json = await res.json();
-      setData(json);
+
+      // Sort by total score descending
+      leaderboardData.sort((a, b) => b.totalScore - a.totalScore);
+      setData(leaderboardData);
     } catch (err) {
       console.error(err);
     } finally {

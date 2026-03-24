@@ -5,6 +5,7 @@ import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Shield, Camera, UserCheck, Layout, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import emailjs from '@emailjs/browser';
+import { supabase } from '../lib/supabase';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -54,52 +55,54 @@ export default function QuizPage() {
 
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
+      if (!user || !id) return;
       try {
         // Check if already attempted
-        const rRes = await fetch('/api/student/results', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const results = await rRes.json();
-        const attempted = Array.isArray(results) && results.some((r: any) => r.quiz_id.toString() === id?.toString());
+        const { data: attempts, error: aError } = await supabase
+          .from('attempts')
+          .select('*')
+          .eq('quiz_id', id)
+          .eq('student_id', user.id);
         
-        if (attempted) {
+        if (aError) throw aError;
+        
+        if (attempts && attempts.length > 0) {
           setShowAlreadyAttempted(true);
           setLoading(false);
           return;
         }
 
         // Fetch quiz
-        const qRes = await fetch(`/api/quizzes/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const { data: quizData, error: qError } = await supabase
+          .from('quizzes')
+          .select(`
+            *,
+            questions (*)
+          `)
+          .eq('id', id)
+          .single();
         
-        if (qRes.status === 403) {
-          setShowAlreadyAttempted(true);
-          setLoading(false);
-          return;
-        }
-
-        if (!qRes.ok) throw new Error('Quiz not found');
-        const data = await qRes.json();
+        if (qError) throw qError;
+        if (!quizData) throw new Error('Quiz not found');
 
         // Check if quiz is scheduled for the future
-        if (data.scheduled_at && new Date(data.scheduled_at) > new Date()) {
-          alert(`This quiz is scheduled to start at ${new Date(data.scheduled_at).toLocaleString()}`);
+        if (quizData.scheduled_at && new Date(quizData.scheduled_at) > new Date()) {
+          alert(`This quiz is scheduled to start at ${new Date(quizData.scheduled_at).toLocaleString()}`);
           navigate('/student');
           return;
         }
 
         // Shuffle questions and options for each student session
-        if (data.questions && Array.isArray(data.questions)) {
+        if (quizData.questions && Array.isArray(quizData.questions)) {
           // 1. Shuffle Questions
-          const shuffledQuestions = [...data.questions];
+          const shuffledQuestions = [...quizData.questions];
           for (let i = shuffledQuestions.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
           }
 
           // 2. Shuffle Options for each question
-          data.questions = shuffledQuestions.map((q: any) => {
+          quizData.questions = shuffledQuestions.map((q: any) => {
             const options = [
               { id: 'a', text: q.option_a },
               { id: 'b', text: q.option_b },
@@ -130,22 +133,22 @@ export default function QuizPage() {
           });
         }
 
-        setQuiz(data);
+        setQuiz(quizData);
         
-        let initialTime = data.time_limit * 60;
+        let initialTime = quizData.time_limit * 60;
         setTimeLeft(initialTime);
 
-        const expiry = data.expires_at || data.priority_category;
+        const expiry = quizData.expires_at || quizData.priority_category;
         if (expiry && new Date(expiry) < new Date()) {
           alert('This quiz has expired and is no longer available.');
           navigate('/student');
           return;
         }
 
-        if (data.question_timer > 0) setQuestionTimeLeft(data.question_timer);
+        if (quizData.question_timer > 0) setQuestionTimeLeft(quizData.question_timer);
         
         // Set initial stage
-        if (data.is_proctored) {
+        if (quizData.is_proctored) {
           setStage('verification');
         } else {
           setStage('instructions');
@@ -158,8 +161,8 @@ export default function QuizPage() {
       }
     };
 
-    if (token && id) checkAttemptAndFetchQuiz();
-  }, [id, token, navigate, user?.priority_type]);
+    if (id && user) checkAttemptAndFetchQuiz();
+  }, [id, user, navigate]);
 
   // OS Securities
   useEffect(() => {
@@ -268,7 +271,7 @@ export default function QuizPage() {
   }, [answers]);
 
   const handleSubmit = useCallback(async () => {
-    if (!quiz || !quiz.questions || isSubmitting) return;
+    if (!quiz || !quiz.questions || isSubmitting || !user) return;
     
     setIsSubmitting(true);
 
@@ -278,41 +281,59 @@ export default function QuizPage() {
     });
 
     try {
-      const response = await fetch('/api/attempts', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-          body: JSON.stringify({
-            quiz_id: quiz.id,
-            score: correctCount,
-            total_questions: quiz.questions.length,
-            responses: answersRef.current,
-            malpractice_count: malpracticeCount,
-            security_log: securityLog,
-            verification_photo: capturedPhoto
-          })
-      });
+      const { data: attempt, error: aError } = await supabase
+        .from('attempts')
+        .insert([{
+          student_id: user.id,
+          quiz_id: quiz.id,
+          score: correctCount,
+          total_questions: quiz.questions.length,
+          responses: answersRef.current,
+          malpractice_count: malpracticeCount,
+          security_log: securityLog,
+          verification_photo: capturedPhoto,
+          attempt_date: new Date().toISOString()
+        }])
+        .select()
+        .single();
 
-      const attemptResult = await response.json();
+      if (aError) throw aError;
 
-      // Send Email Notification to Admin
-      const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID;
-      const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID;
-      const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY;
+      // Class Completion Logic
+      const { data: studentsInGroup, error: sError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('year', user.year)
+        .eq('department', user.department)
+        .eq('section', user.section);
       
-      // Use the admin email from the quiz object if available, fallback to env
-      const adminEmail = (quiz as any).admin_email || (import.meta as any).env.VITE_ADMIN_EMAIL;
+      if (sError) throw sError;
 
-      if (serviceId && templateId && publicKey && adminEmail) {
-        // Only send email if the whole class has finished
-        if (attemptResult.classCompleted) {
+      const { data: attemptsForQuiz, error: atError } = await supabase
+        .from('attempts')
+        .select('student_id')
+        .eq('quiz_id', quiz.id);
+      
+      if (atError) throw atError;
+
+      const studentIdsInGroup = studentsInGroup.map(s => s.id);
+      const attemptedStudentIds = attemptsForQuiz.map(a => a.student_id);
+      const allCompleted = studentIdsInGroup.every(id => attemptedStudentIds.includes(id));
+
+      if (allCompleted) {
+        // Send Email Notification to Admin
+        const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID;
+        const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID;
+        const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY;
+        
+        const adminEmail = (quiz as any).admin_email || (import.meta as any).env.VITE_ADMIN_EMAIL;
+
+        if (serviceId && templateId && publicKey && adminEmail) {
           const templateParams = {
             admin_email: adminEmail,
             quiz_title: quiz.title,
-            completed_group: attemptResult.completedGroup,
-            message: `All students in ${attemptResult.completedGroup} have completed the quiz: ${quiz.title}.`,
+            completed_group: `${user.year}yr ${user.department} Sec ${user.section}`,
+            message: `All students in ${user.year}yr ${user.department} Sec ${user.section} have completed the quiz: ${quiz.title}.`,
             date: new Date().toLocaleString()
           };
 
@@ -333,7 +354,7 @@ export default function QuizPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [quiz, token, isSubmitting]);
+  }, [quiz, user, isSubmitting, malpracticeCount, securityLog, capturedPhoto]);
 
   // Keyboard Shortcuts
   useEffect(() => {

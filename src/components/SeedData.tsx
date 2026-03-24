@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../App';
+import { supabase } from '../lib/supabase';
 
 export default function SeedData() {
   const { token, user } = useAuth();
@@ -24,26 +25,26 @@ export default function SeedData() {
           mobile: '0000000000',
           department: 'AIML',
           year: 2,
-          section: 'B'
+          section: 'B',
+          role: 'student',
+          priority_type: 'normal',
+          is_safety_secure: true,
+          camera_facilities: true,
+          os_security_level: 'standard',
+          stage: 1
         });
       }
 
-      const response = await fetch('/api/students/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ students })
-      });
+      const { error } = await supabase
+        .from('students')
+        .insert(students);
 
-      if (response.ok) {
+      if (!error) {
         setStatus('success');
         setMessage(`Successfully added ${students.length} students.`);
       } else {
-        const data = await response.json();
         setStatus('error');
-        setMessage(data.error || 'Failed to seed students.');
+        setMessage(error.message || 'Failed to seed students.');
       }
     } catch (err) {
       setStatus('error');

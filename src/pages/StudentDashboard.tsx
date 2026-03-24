@@ -4,6 +4,7 @@ import { Quiz, Attempt, Question } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from '../lib/supabase';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -21,26 +22,69 @@ export default function StudentDashboard() {
   };
 
   const fetchData = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const [qRes, rRes, lRes] = await Promise.all([
-        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
-      const qData = await qRes.json();
-      const rData = await rRes.json();
-      const lData = await lRes.json();
+      // Fetch Quizzes for student's criteria
+      const { data: qData, error: qError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('year', user.year)
+        .eq('department', user.department)
+        .or(`section.eq.Both,section.eq.${user.section}`);
       
-      setQuizzes(Array.isArray(qData) ? qData : []);
-      setResults(Array.isArray(rData) ? rData : []);
-      setLeaderboard(Array.isArray(lData) ? lData : []);
+      if (qError) throw qError;
+
+      // Fetch Student's Results
+      const { data: rData, error: rError } = await supabase
+        .from('attempts')
+        .select(`
+          *,
+          quizzes (
+            title
+          )
+        `)
+        .eq('student_id', user.id);
       
-      console.log('Dashboard Data Loaded:', {
-        quizzesCount: Array.isArray(qData) ? qData.length : 0,
-        resultsCount: Array.isArray(rData) ? rData.length : 0,
-        results: rData
+      if (rError) throw rError;
+
+      // Fetch Leaderboard for student's class
+      const { data: students, error: sError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('year', user.year)
+        .eq('department', user.department)
+        .eq('section', user.section);
+      
+      if (sError) throw sError;
+
+      const { data: allAttempts, error: aError } = await supabase
+        .from('attempts')
+        .select('*');
+      
+      if (aError) throw aError;
+
+      // Map results to include quiz title
+      const mappedResults = rData.map((r: any) => ({
+        ...r,
+        title: r.quizzes?.title || 'Unknown Quiz'
+      }));
+
+      // Calculate leaderboard
+      const leaderboardData = students.map(s => {
+        const studentAttempts = allAttempts.filter(a => a.student_id === s.id);
+        const totalScore = studentAttempts.reduce((acc, curr) => acc + curr.score, 0);
+        return {
+          ...s,
+          totalScore
+        };
       });
+      leaderboardData.sort((a, b) => b.totalScore - a.totalScore);
+
+      setQuizzes(qData || []);
+      setResults(mappedResults || []);
+      setLeaderboard(leaderboardData || []);
+      
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {

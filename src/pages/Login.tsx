@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Shield, User as UserIcon, Calendar, Key, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { supabase } from '../lib/supabase';
 
 export default function Login() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -36,20 +37,30 @@ export default function Login() {
 
     if (isAdmin && isForgotPassword) {
       try {
-        const res = await fetch('/api/admin/reset-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email: formData.email, 
-            newPassword: formData.newPassword 
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
+        // Check if admin exists
+        const { data: admin, error: findError } = await supabase
+          .from('admins')
+          .select('id')
+          .eq('email', formData.email)
+          .single();
+
+        if (findError || !admin) {
+          setError('Admin with this email not found');
+          setLoading(false);
+          return;
+        }
+
+        // Update password
+        const { error: updateError } = await supabase
+          .from('admins')
+          .update({ password: formData.newPassword })
+          .eq('email', formData.email);
+
+        if (updateError) {
+          setError(updateError.message);
+        } else {
           setSuccess('Password reset successful! Please login.');
           setIsForgotPassword(false);
-        } else {
-          setError(data.error || 'Reset failed');
         }
       } catch (err) {
         setError('Connection error');
@@ -61,21 +72,24 @@ export default function Login() {
 
     if (isAdmin && isRegistering) {
       try {
-        const res = await fetch('/api/admin/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+        const { data, error: regError } = await supabase
+          .from('admins')
+          .insert([{ 
             name: formData.name, 
             email: formData.email, 
             password: formData.password 
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
+          }])
+          .select();
+        
+        if (regError) {
+          if (regError.message.includes('unique constraint "admins_email_key"')) {
+            setError('An admin with this email already exists.');
+          } else {
+            setError(regError.message);
+          }
+        } else {
           setSuccess('Registration successful! Please login.');
           setIsRegistering(false);
-        } else {
-          setError(data.error || 'Registration failed');
         }
       } catch (err) {
         setError('Connection error');
@@ -85,23 +99,35 @@ export default function Login() {
       return;
     }
 
-    const endpoint = isAdmin ? '/api/admin/login' : '/api/student/login';
-    const body = isAdmin 
-      ? { email: formData.email, password: formData.password }
-      : { registration_number: formData.registration_number, date_of_birth: formData.date_of_birth };
-
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        login(data.token, { ...data.user, role: isAdmin ? 'admin' : 'student' });
-        navigate(isAdmin ? '/admin' : '/student');
+      if (isAdmin) {
+        const { data: admin, error: loginError } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', formData.email)
+          .eq('password', formData.password)
+          .single();
+
+        if (admin) {
+          login('simulated-admin-token', { ...admin, role: 'admin' });
+          navigate('/admin');
+        } else {
+          setError('Invalid credentials');
+        }
       } else {
-        setError(data.error || 'Login failed');
+        const { data: student, error: loginError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('registration_number', formData.registration_number)
+          .eq('date_of_birth', formData.date_of_birth)
+          .single();
+
+        if (student) {
+          login('simulated-student-token', { ...student, role: 'student' });
+          navigate('/student');
+        } else {
+          setError('Invalid credentials');
+        }
       }
     } catch (err) {
       setError('Connection error');

@@ -4,6 +4,7 @@ import { useAuth } from '../App';
 import { Quiz, User } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
+import { supabase } from '../lib/supabase';
 
 export default function StudentPreview() {
   const { id } = useParams();
@@ -21,25 +22,47 @@ export default function StudentPreview() {
     }
 
     const fetchData = async () => {
+      if (!id) return;
       try {
         // Fetch student details
-        const sRes = await fetch(`/api/admin/student/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const studentData = await sRes.json();
+        const { data: studentData, error: sError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (sError) throw sError;
         setStudent(studentData);
 
         // Fetch student's view of quizzes and results
-        const [qRes, rRes] = await Promise.all([
-          fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch(`/api/admin/student/${id}/results`, { headers: { 'Authorization': `Bearer ${token}` } })
-        ]);
+        const { data: qData, error: qError } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('year', studentData.year)
+          .eq('department', studentData.department)
+          .or(`section.eq.Both,section.eq.${studentData.section}`);
         
-        const qData = await qRes.json();
-        const rData = await rRes.json();
+        if (qError) throw qError;
+
+        const { data: rData, error: rError } = await supabase
+          .from('attempts')
+          .select(`
+            *,
+            quizzes (
+              title
+            )
+          `)
+          .eq('student_id', id);
         
-        setQuizzes(Array.isArray(qData) ? qData : []);
-        setResults(Array.isArray(rData) ? rData : []);
+        if (rError) throw rError;
+        
+        const mappedResults = rData.map((r: any) => ({
+          ...r,
+          title: r.quizzes?.title || 'Unknown Quiz'
+        }));
+
+        setQuizzes(qData || []);
+        setResults(mappedResults || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -47,7 +70,7 @@ export default function StudentPreview() {
       }
     };
     fetchData();
-  }, [id, token, adminUser, navigate]);
+  }, [id, adminUser, navigate]);
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-4 border-[#141414] border-t-transparent rounded-full animate-spin" /></div>;
   if (!student) return <div className="p-12 text-center">Student not found</div>;
