@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth } from './lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { User } from './types';
 import Login from './pages/Login';
@@ -61,39 +59,23 @@ export default function App() {
     }
   });
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // Here we assume the role is admin for admin-portal
-        const userData: User = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          name: firebaseUser.displayName || 'Admin',
-          role: 'admin'
-        };
-        setUser(userData);
-        setToken('firebase-managed'); // Firebase handles tokens, but we keep this for compatibility with ProtectedRoute
-      } else {
-        setUser(null);
-        setToken(null);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
   const login = (newToken: string, newUser: User) => {
-    // This is now handled by onAuthStateChanged, but kept for legacy calls if any
     setToken(newToken);
     setUser(newUser);
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(newUser));
   };
 
-  const logout = async () => {
-    await signOut(auth);
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
-      <BrowserRouter basename="/admin">
+      <BrowserRouter>
         <SeedData />
         <Routes>
           <Route path="/login" element={<Login />} />

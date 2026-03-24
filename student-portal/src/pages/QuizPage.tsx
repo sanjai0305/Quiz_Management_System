@@ -5,8 +5,6 @@ import { Quiz, Question } from '../types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Camera, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import emailjs from '@emailjs/browser';
-import { db } from '../lib/firebase';
-import { doc, getDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -58,22 +56,30 @@ export default function QuizPage() {
   useEffect(() => {
     const checkAttemptAndFetchQuiz = async () => {
       try {
-        const rQuery = query(
-          collection(db, 'attempts'),
-          where('registration_number', '==', user?.registration_number),
-          where('quiz_id', '==', id)
-        );
-        const rSnap = await getDocs(rQuery);
+        const rRes = await fetch(`${API_BASE_URL}/api/student/results`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const results = await rRes.json();
+        const attempted = Array.isArray(results) && results.some((r: any) => r.quiz_id.toString() === id?.toString());
         
-        if (!rSnap.empty) {
+        if (attempted) {
           setShowAlreadyAttempted(true);
           setLoading(false);
           return;
         }
 
-        const qSnap = await getDoc(doc(db, 'quizzes', id!));
-        if (!qSnap.exists()) throw new Error('Quiz not found');
-        const data = { ...qSnap.data(), id: qSnap.id } as any as Quiz;
+        const qRes = await fetch(`${API_BASE_URL}/api/quizzes/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (qRes.status === 403) {
+          setShowAlreadyAttempted(true);
+          setLoading(false);
+          return;
+        }
+
+        if (!qRes.ok) throw new Error('Quiz not found');
+        const data = await qRes.json();
 
         if (data.scheduled_at && new Date(data.scheduled_at) > new Date()) {
           alert(`This quiz is scheduled to start at ${new Date(data.scheduled_at).toLocaleString()}`);
@@ -83,7 +89,6 @@ export default function QuizPage() {
 
         if (data.questions && Array.isArray(data.questions)) {
           const shuffledQuestions = [...data.questions];
-          // Shuffling logic stays same
           for (let i = shuffledQuestions.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
@@ -91,10 +96,10 @@ export default function QuizPage() {
 
           data.questions = shuffledQuestions.map((q: any) => {
             const options = [
-              { id: 'a', text: q.option_a || q.a },
-              { id: 'b', text: q.option_b || q.b },
-              { id: 'c', text: q.option_c || q.c },
-              { id: 'd', text: q.option_d || q.d }
+              { id: 'a', text: q.option_a },
+              { id: 'b', text: q.option_b },
+              { id: 'c', text: q.option_c },
+              { id: 'd', text: q.option_d }
             ];
             
             for (let i = options.length - 1; i > 0; i--) {
@@ -120,13 +125,14 @@ export default function QuizPage() {
 
         setQuiz(data);
         
+        // Add extra time for priority categories (50% extra)
         let baseTime = data.time_limit * 60;
         if (user?.priority_type && user.priority_type !== 'normal') {
           baseTime = Math.floor(baseTime * 1.5);
         }
         setTimeLeft(baseTime);
 
-        const expiry = data.expires_at || (data as any).priority_category;
+        const expiry = data.expires_at || data.priority_category;
         if (expiry && new Date(expiry) < new Date()) {
           alert('This quiz has expired and is no longer available.');
           navigate('/student');
@@ -232,32 +238,43 @@ export default function QuizPage() {
     });
 
     try {
-      const attemptData = {
-        quiz_id: quiz.id,
-        quiz_title: quiz.title,
-        student_id: user?.id,
-        name: user?.name,
-        registration_number: user?.registration_number,
-        score: correctCount,
-        total_questions: quiz.questions.length,
-        responses: answersRef.current,
-        malpractice_count: malpracticeCount,
-        security_log: securityLog,
-        verification_photo: capturedPhoto,
-        attempt_date: new Date().toISOString()
-      };
+      const response = await fetch(`${API_BASE_URL}/api/attempts`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          quiz_id: quiz.id,
+          score: correctCount,
+          total_questions: quiz.questions.length,
+          responses: answersRef.current,
+          malpractice_count: malpracticeCount,
+          security_log: securityLog,
+          verification_photo: capturedPhoto
+        })
+      });
 
-      await addDoc(collection(db, 'attempts'), attemptData);
+      const attemptResult = await response.json();
 
-      // Email notification logic (simplified check)
       const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID;
       const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID;
       const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY;
       const adminEmail = (quiz as any).admin_email || (import.meta as any).env.VITE_ADMIN_EMAIL;
 
-      if (serviceId && templateId && publicKey && adminEmail) {
-        // You could add logic here to check if this was the last student in class
-        // but for Firestore we'll just send if configured
+      if (serviceId && templateId && publicKey && adminEmail && attemptResult.classCompleted) {
+        const templateParams = {
+          admin_email: adminEmail,
+          quiz_title: quiz.title,
+          completed_group: attemptResult.completedGroup,
+          message: `All students in ${attemptResult.completedGroup} have completed the quiz: ${quiz.title}.`,
+          date: new Date().toLocaleString()
+        };
+        try {
+          await emailjs.send(serviceId, templateId, templateParams, publicKey);
+        } catch (err) {
+          console.error('Failed to send email:', err);
+        }
       }
 
       setScore(correctCount);

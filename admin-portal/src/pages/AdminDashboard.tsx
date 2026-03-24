@@ -3,8 +3,6 @@ import { useAuth, API_BASE_URL } from '../App';
 import { User, Quiz, Attempt } from '../types';
 import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, query, orderBy, setDoc } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
@@ -61,33 +59,36 @@ function StudentManager({ token }: { token: string }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [studentToDelete, setStudentToDelete] = useState<string | number | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const studentsSnap = await getDocs(collection(db, 'students'));
-      const quizzesSnap = await getDocs(collection(db, 'quizzes'));
-      const attemptsSnap = await getDocs(collection(db, 'attempts'));
+      const [sRes, qRes, aRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/quizzes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
       
-      setStudents(studentsSnap.docs.map(d => ({ ...d.data(), id: d.id } as User)));
-      setQuizzes(quizzesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz)));
-      setAttempts(attemptsSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Attempt)));
+      if (sRes.ok) setStudents(await sRes.json());
+      if (qRes.ok) setQuizzes(await qRes.json());
+      if (aRes.ok) setAttempts(await aRes.json());
     } catch (err) {
-      console.error('Firestore Fetch error:', err);
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteStudent = async (id: string | number) => {
-    try {
-      await deleteDoc(doc(db, 'students', id.toString()));
+  const handleDeleteStudent = async (id: number) => {
+    const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
       fetchData();
       setStudentToDelete(null);
-    } catch (err) {
-      console.error('Delete error:', err);
     }
   };
 
@@ -492,15 +493,22 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await addDoc(collection(db, 'students'), {
-        ...formData,
-        createdAt: new Date().toISOString()
-      });
+
+    const res = await fetch(`${API_BASE_URL}/api/students`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(formData)
+    });
+
+    if (res.ok) {
       onAdded();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to add student');
+    } else {
+      const data = await res.json();
+      setError(data.error);
     }
   };
 
@@ -639,21 +647,25 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
 function QuizManager({ token }: { token: string }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [editingQuizId, setEditingQuizId] = useState<string | number | null>(null);
-  const [quizToDelete, setQuizToDelete] = useState<string | number | null>(null);
+  const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+  const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
-    const quizzesSnap = await getDocs(collection(db, 'quizzes'));
-    setQuizzes(quizzesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz)));
+    const res = await fetch(`${API_BASE_URL}/api/quizzes`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setQuizzes(data);
   };
 
-  const handleDeleteQuiz = async (id: string | number) => {
-    try {
-      await deleteDoc(doc(db, 'quizzes', id.toString()));
+  const handleDeleteQuiz = async (id: number) => {
+    const res = await fetch(`${API_BASE_URL}/api/quizzes/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
       fetchQuizzes();
       setQuizToDelete(null);
-    } catch (err) {
-      console.error('Delete Quiz error:', err);
     }
   };
 
@@ -744,7 +756,7 @@ function QuizManager({ token }: { token: string }) {
   );
 }
 
-function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, onAdded: () => void, token: string, quizId?: string | number }) {
+function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, onAdded: () => void, token: string, quizId?: number }) {
   const [quizData, setQuizData] = useState({
     title: '',
     subject: '',
@@ -768,55 +780,49 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      getDoc(doc(db, 'quizzes', quizId.toString()))
-      .then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setQuizData({
-            title: data.title,
-            subject: data.subject,
-            time_limit: data.time_limit,
-            question_timer: data.question_timer || 0,
-            year: data.year,
-            department: data.department || 'AIML',
-            section: data.section || 'Both',
-            scheduled_date: data.scheduled_at ? data.scheduled_at.split('T')[0] : '',
-            scheduled_time: data.scheduled_at ? data.scheduled_at.split('T')[1].substring(0, 5) : '',
-            expiry_date: data.expires_at ? data.expires_at.split('T')[0] : '',
-            expiry_time: data.expires_at ? data.expires_at.split('T')[1].substring(0, 5) : '',
-            is_proctored: data.is_proctored || false,
-            strict_mode: data.strict_mode || false,
-            reset_attempts: false,
-            questions: data.questions || []
-          });
-        }
-      })
-      .finally(() => setIsLoading(false));
+      fetch(`${API_BASE_URL}/api/quizzes/${quizId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        setQuizData({
+          title: data.title,
+          subject: data.subject,
+          time_limit: data.time_limit,
+          question_timer: data.question_timer || 0,
+          year: data.year,
+          department: data.department || 'AIML',
+          section: data.section || 'Both',
+          scheduled_date: data.scheduled_at ? data.scheduled_at.split('T')[0] : '',
+          scheduled_time: data.scheduled_at ? data.scheduled_at.split('T')[1].substring(0, 5) : '',
+          expiry_date: data.expires_at ? data.expires_at.split('T')[0] : '',
+          expiry_time: data.expires_at ? data.expires_at.split('T')[1].substring(0, 5) : '',
+          is_proctored: data.is_proctored || false,
+          strict_mode: data.strict_mode || false,
+          reset_attempts: false,
+          questions: data.questions.map((q: any) => ({
+            text: q.question_text,
+            a: q.option_a,
+            b: q.option_b,
+            c: q.option_c,
+            d: q.option_d,
+            correct: q.correct_answer
+          }))
+        });
+        setIsLoading(false);
+      });
     }
-  }, [quizId]);
+  }, [quizId, token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const quizRef = quizId ? doc(db, 'quizzes', quizId.toString()) : collection(db, 'quizzes');
-      const data = {
-        ...quizData,
-        scheduled_at: quizData.scheduled_date ? `${quizData.scheduled_date}T${quizData.scheduled_time || '00:00'}:00` : null,
-        expires_at: quizData.expiry_date ? `${quizData.expiry_date}T${quizData.expiry_time || '00:00'}:00` : null,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (quizId) {
-        await updateDoc(quizRef as any, data);
-      } else {
-        await addDoc(collection(db, 'quizzes'), { ...data, createdAt: new Date().toISOString() });
-      }
-      onAdded();
-      onClose();
-    } catch (err: any) {
-      console.error(err);
-      setError('Failed to save quiz: ' + err.message);
-    }
+    const url = quizId ? `${API_BASE_URL}/api/quizzes/${quizId}` : `${API_BASE_URL}/api/quizzes`;
+    const method = quizId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(quizData)
+    });
+    if (res.ok) { onAdded(); onClose(); }
+    else setError('Failed to save quiz');
   };
 
   if (isLoading) return null;
@@ -845,30 +851,10 @@ function LeaderboardView({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const attemptsSnap = await getDocs(collection(db, 'attempts'));
-        const studentScores: Record<string, { name: string, totalScore: number }> = {};
-        
-        attemptsSnap.docs.forEach(d => {
-          const attempt = d.data();
-          const studentId = attempt.student_id;
-          if (!studentScores[studentId]) {
-            studentScores[studentId] = { name: attempt.name, totalScore: 0 };
-          }
-          studentScores[studentId].totalScore += attempt.score;
-        });
-        
-        const sorted = Object.values(studentScores).sort((a, b) => b.totalScore - a.totalScore);
-        setData(sorted);
-      } catch (err) {
-        console.error('Leaderboard fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLeaderboard();
-  }, []);
+    fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
+    .then(res => res.json())
+    .then(json => { setData(json); setLoading(false); });
+  }, [token]);
 
   return (
     <div className="bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm">

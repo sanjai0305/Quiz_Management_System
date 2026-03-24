@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { Quiz, Attempt, Question } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle } from 'lucide-react';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getApiUrl } from '../lib/api';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -13,16 +12,21 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
   const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [qRes, rRes, lRes] = await Promise.all([
-        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/student/results'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/student/results', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       const qData = await qRes.json();
       const rData = await rRes.json();
@@ -77,29 +81,37 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-12">
-
-      <header className="flex items-center gap-6">
-        <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
-          {user?.profile_picture ? (
-            <img src={user.profile_picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="bg-indigo-50 text-indigo-600 w-full h-full flex items-center justify-center">
-              <BookOpen size={32} />
-            </div>
-          )}
-        </div>
-        <div>
-          <h2 className="text-4xl font-black tracking-tighter">STUDENT PORTAL</h2>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-sm font-medium uppercase tracking-widest opacity-50">Academic Dashboard • Welcome, {user?.name}</p>
-            {user?.year && (
-              <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
-                {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
-              </span>
+    <div className="space-y-12 p-6 md:p-12 max-w-7xl mx-auto">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
+            {user?.profile_picture ? (
+              <img src={user.profile_picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="bg-indigo-50 text-indigo-600 w-full h-full flex items-center justify-center">
+                <BookOpen size={32} />
+              </div>
             )}
           </div>
+          <div>
+            <h2 className="text-4xl font-black tracking-tighter uppercase">STUDENT PORTAL</h2>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm font-medium uppercase tracking-widest opacity-50">Academic Dashboard • Welcome, {user?.name}</p>
+              {user?.year && (
+                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
+                  {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
+                </span>
+              )}
+            </div>
+          </div>
         </div>
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-red-100 transition-all border-2 border-red-100 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.1)]"
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">

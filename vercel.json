@@ -4,23 +4,12 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/admin/(.*)",
-      "destination": "/admin/index.html"
-    },
-    {
-      "source": "/student/(.*)",
-      "destination": "/student/index.html"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "https://quiz-management-system-f8wm.onrender.com/api/$1"
-    }
-  ],
-  "redirects": [
+    },
     {
-      "source": "/",
-      "destination": "/index.html",
-      "permanent": false
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

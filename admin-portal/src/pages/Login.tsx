@@ -3,14 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, API_BASE_URL } from '../App';
 import { Shield, User as UserIcon, Key, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { auth, db } from '../lib/firebase';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  sendPasswordResetEmail,
-  updateProfile
-} from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 
 export default function Login() {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -41,11 +33,23 @@ export default function Login() {
 
     if (isForgotPassword) {
       try {
-        await sendPasswordResetEmail(auth, formData.email);
-        setSuccess('Password reset email sent! Please check your inbox.');
-        setIsForgotPassword(false);
-      } catch (err: any) {
-        setError(err.message || 'Reset failed');
+        const res = await fetch(`${API_BASE_URL}/api/admin/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: formData.email, 
+            newPassword: formData.newPassword 
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSuccess('Password reset successful! Please login.');
+          setIsForgotPassword(false);
+        } else {
+          setError(data.error || 'Reset failed');
+        }
+      } catch (err) {
+        setError('Connection error');
       } finally {
         setLoading(false);
       }
@@ -54,21 +58,24 @@ export default function Login() {
 
     if (isRegistering) {
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-        await updateProfile(userCredential.user, { displayName: formData.name });
-        
-        // Save admin profile to Firestore
-        await setDoc(doc(db, 'admins', userCredential.user.uid), {
-          name: formData.name,
-          email: formData.email,
-          role: 'admin',
-          createdAt: new Date().toISOString()
+        const res = await fetch(`${API_BASE_URL}/api/admin/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: formData.name, 
+            email: formData.email, 
+            password: formData.password 
+          })
         });
-
-        setSuccess('Registration successful!');
-        setIsRegistering(false);
-      } catch (err: any) {
-        setError(err.message || 'Registration failed');
+        const data = await res.json();
+        if (res.ok) {
+          setSuccess('Registration successful! Please login.');
+          setIsRegistering(false);
+        } else {
+          setError(data.error || 'Registration failed');
+        }
+      } catch (err) {
+        setError('Connection error');
       } finally {
         setLoading(false);
       }
@@ -76,10 +83,20 @@ export default function Login() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      // navigation is handled by useEffect in App.tsx watching auth state
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+      const res = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, password: formData.password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        login(data.token, { ...data.user, role: 'admin' });
+        navigate('/admin');
+      } else {
+        setError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('Connection error');
     } finally {
       setLoading(false);
     }

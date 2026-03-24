@@ -1,26 +1,49 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw } from 'lucide-react';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getApiUrl } from '../lib/api';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-4xl font-black tracking-tighter uppercase">ADMIN {user?.name}</h2>
-          <p className="text-sm font-medium uppercase tracking-widest opacity-50">System Management & Oversight</p>
+        <div className="flex justify-between items-start w-full md:w-auto">
+          <div>
+            <h2 className="text-4xl font-black tracking-tighter uppercase">ADMIN {user?.name}</h2>
+            <p className="text-sm font-medium uppercase tracking-widest opacity-50">System Management & Oversight</p>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="md:hidden p-2 hover:bg-red-50 text-red-600 rounded-full transition-colors"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
         
-        <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] overflow-x-auto">
-          <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
-          <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
-          <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
+        <div className="flex items-center gap-4">
+          <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] overflow-x-auto">
+            <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
+            <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
+            <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-red-100 transition-all border-2 border-red-100 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.1)]"
+          >
+            <LogOut size={18} />
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 
@@ -68,9 +91,9 @@ function StudentManager({ token }: { token: string }) {
     try {
       console.log('Fetching admin data...');
       const [sRes, qRes, aRes] = await Promise.all([
-        fetch(getApiUrl('/api/students'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/quizzes'), { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(getApiUrl('/api/leaderboard'), { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/students', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/quizzes', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/leaderboard', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
       if (sRes.ok) {
@@ -91,7 +114,7 @@ function StudentManager({ token }: { token: string }) {
   };
 
   const handleDeleteStudent = async (id: number) => {
-    const res = await fetch(getApiUrl(`/api/students/${id}`), {
+    const res = await fetch(`/api/students/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -490,7 +513,7 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const res = await fetch(getApiUrl('/api/students'), {
+    const res = await fetch('/api/students', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -651,7 +674,7 @@ function QuizManager({ token }: { token: string }) {
   const [quizToDelete, setQuizToDelete] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
-    const res = await fetch(getApiUrl('/api/quizzes'), {
+    const res = await fetch('/api/quizzes', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -659,7 +682,7 @@ function QuizManager({ token }: { token: string }) {
   };
 
   const fetchStudents = async () => {
-    const res = await fetch(getApiUrl('/api/students'), {
+    const res = await fetch('/api/students', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
@@ -667,7 +690,7 @@ function QuizManager({ token }: { token: string }) {
   };
 
   const handleDeleteQuiz = async (id: number) => {
-    const res = await fetch(getApiUrl(`/api/quizzes/${id}`), {
+    const res = await fetch(`/api/quizzes/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -704,7 +727,7 @@ function QuizManager({ token }: { token: string }) {
                   const date = prompt('Enter date (YYYY-MM-DD) for the report:', new Date().toISOString().split('T')[0]);
                   if (!date) return;
                   
-                  const res = await fetch(getApiUrl('/api/admin/trigger-report'), {
+                  const res = await fetch('/api/admin/trigger-report', {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
@@ -849,7 +872,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   useEffect(() => {
     if (quizId) {
       setIsLoading(true);
-      fetch(getApiUrl(`/api/quizzes/${quizId}`), {
+      fetch(`/api/quizzes/${quizId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -967,7 +990,7 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const url = quizId ? getApiUrl(`/api/quizzes/${quizId}`) : getApiUrl('/api/quizzes');
+    const url = quizId ? `/api/quizzes/${quizId}` : '/api/quizzes';
     const method = quizId ? 'PUT' : 'POST';
 
     const scheduled_at = (quizData.scheduled_date && quizData.scheduled_time) 
@@ -1229,7 +1252,7 @@ function LeaderboardView({ token }: { token: string }) {
       if (filters.department) params.append('department', filters.department);
       if (filters.section) params.append('section', filters.section);
 
-      const res = await fetch(getApiUrl(`/api/leaderboard?${params.toString()}`), {
+      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -1391,7 +1414,7 @@ function NotificationCenter({ token }: { token: string }) {
     setSending(true);
     setStatus(null);
     try {
-      const res = await fetch(getApiUrl('/api/notifications/send-manual'), {
+      const res = await fetch('/api/notifications/send-manual', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

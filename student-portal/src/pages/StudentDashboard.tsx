@@ -4,8 +4,6 @@ import { Quiz, Attempt, Question } from '../types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -20,42 +18,20 @@ export default function StudentDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Quizzes matching student's criteria
-      const qQuery = query(
-        collection(db, 'quizzes'),
-        where('department', '==', user?.department),
-        where('year', '==', user?.year)
-      );
-      const qSnap = await getDocs(qQuery);
-      const allQuizzes = qSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Quiz));
-      // Filter by section client-side since Firestore 'where' has limitations with 'Both'
-      setQuizzes(allQuizzes.filter(q => q.section === 'Both' || q.section === user?.section));
-
-      // Fetch Student's Results
-      const rQuery = query(
-        collection(db, 'attempts'),
-        where('registration_number', '==', user?.registration_number)
-      );
-      const rSnap = await getDocs(rQuery);
-      setResults(rSnap.docs.map(d => ({ ...d.data(), id: d.id } as any as Attempt)));
-
-      // Fetch Leaderboard (calculated from all attempts in same dept/section)
-      const lSnap = await getDocs(collection(db, 'attempts'));
-      const studentScores: Record<string, { name: string, registration_number: string, totalScore: number, id: string }> = {};
+      const [qRes, rRes, lRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/quizzes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/student/results`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      const qData = await qRes.json();
+      const rData = await rRes.json();
+      const lData = await lRes.json();
       
-      lSnap.docs.forEach(d => {
-        const attempt = d.data();
-        const sid = attempt.registration_number;
-        if (!studentScores[sid]) {
-          studentScores[sid] = { name: attempt.name, registration_number: sid, totalScore: 0, id: attempt.student_id };
-        }
-        studentScores[sid].totalScore += attempt.score;
-      });
-      
-      const sorted = Object.values(studentScores).sort((a, b) => b.totalScore - a.totalScore);
-      setLeaderboard(sorted);
+      setQuizzes(Array.isArray(qData) ? qData : []);
+      setResults(Array.isArray(rData) ? rData : []);
+      setLeaderboard(Array.isArray(lData) ? lData : []);
     } catch (err) {
-      console.error('Failed to fetch Firestore data:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setLoading(false);
     }
