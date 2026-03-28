@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { useAuth } from '../../App';
 import { Shield, User as UserIcon, Calendar, Key, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -137,26 +137,26 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center p-4 sm:p-6 font-sans">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white border border-[#141414] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] p-8"
+        className="w-full max-w-md bg-white border border-[#141414] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] p-6 sm:p-8"
       >
-        <div className="flex justify-center mb-8">
-          <div className="bg-[#141414] text-white p-4 rounded-2xl">
-            <Shield size={32} />
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="bg-[#141414] text-white p-3 sm:p-4 rounded-2xl">
+            <Shield size={28} className="sm:w-8 sm:h-8" />
           </div>
         </div>
 
-        <h2 className="text-2xl font-black text-center mb-2 tracking-tighter uppercase leading-tight">
+        <h2 className="text-xl sm:text-2xl font-black text-center mb-2 tracking-tighter uppercase leading-tight px-2">
           {isAdmin && isRegistering ? 'Register' : (isAdmin && isForgotPassword ? 'Reset Password' : 'MAHENDRA INSTITUTE OF TECHNOLOGY')}
         </h2>
-        <p className="text-center text-[10px] text-[#141414]/50 mb-8 font-bold uppercase tracking-[0.2em]">
+        <p className="text-center text-[9px] sm:text-[10px] text-[#141414]/50 mb-6 sm:mb-8 font-bold uppercase tracking-[0.2em] px-4">
           {isAdmin && isRegistering ? 'Create Admin Account' : (isAdmin && isForgotPassword ? 'Recover Admin Access' : 'Secure Academic Portal')}
         </p>
 
-        <div className="flex border-2 border-[#141414] mb-8 overflow-hidden rounded-xl">
+        <div className="flex border-2 border-[#141414] mb-6 sm:mb-8 overflow-hidden rounded-xl">
           <button
             onClick={() => { setIsAdmin(false); setIsRegistering(false); setIsForgotPassword(false); }}
             className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${!isAdmin ? 'bg-[#141414] text-white' : 'bg-white text-[#141414] hover:bg-gray-50'}`}

@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../App';
-import { Quiz, Attempt, Question } from '../types';
-import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle, LogOut } from 'lucide-react';
+import { useAuth } from '../../../App';
+import { Quiz, Attempt, Question } from '../../../shared/types';
+import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, X, AlertCircle, LogOut, Shield, Camera, Lock, Accessibility, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../shared/lib/supabase';
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [results, setResults] = useState<Attempt[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [priorityMode, setPriorityMode] = useState(() => localStorage.getItem('pref_priority_mode') || 'standard');
   const [now, setNow] = useState(new Date());
   const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
   const { token, user, logout } = useAuth();
@@ -20,6 +21,14 @@ export default function StudentDashboard() {
     logout();
     navigate('/login');
   };
+
+  useEffect(() => {
+    const handleStorage = () => {
+      setPriorityMode(localStorage.getItem('pref_priority_mode') || 'standard');
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const fetchData = async () => {
     if (!user) return;
@@ -125,46 +134,137 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-12 p-6 md:p-12 max-w-7xl mx-auto">
+    <div className="space-y-6 sm:space-y-12 p-3 sm:p-6 md:p-12 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-6">
-          <div className="w-20 h-20 bg-white border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white border-2 border-[#141414] rounded-2xl sm:rounded-3xl overflow-hidden shadow-brutal-sm flex items-center justify-center">
             {user?.profile_picture ? (
               <img src={user.profile_picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <div className="bg-indigo-50 text-indigo-600 w-full h-full flex items-center justify-center">
-                <BookOpen size={32} />
+                <BookOpen size={28} className="sm:w-8 sm:h-8" />
               </div>
             )}
           </div>
           <div>
-            <h2 className="text-4xl font-black tracking-tighter uppercase">STUDENT PORTAL</h2>
-            <div className="flex items-center gap-3 mt-1">
-              <p className="text-sm font-medium uppercase tracking-widest opacity-50">Academic Dashboard • Welcome, {user?.name}</p>
+            <h2 className="text-xl sm:text-4xl font-black tracking-tighter uppercase">STUDENT PORTAL</h2>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-1">
+              <p className="text-[9px] sm:text-sm font-medium uppercase tracking-widest opacity-50">Welcome, {user?.name}</p>
               {user?.year && (
-                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
+                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold uppercase border border-indigo-200">
                   {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
                 </span>
               )}
             </div>
           </div>
         </div>
-        <button 
-          onClick={handleLogout}
-          className="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-red-100 transition-all border-2 border-red-100 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.1)]"
-        >
-          <LogOut size={18} />
-          <span>Logout</span>
-        </button>
+        <div className="flex items-center justify-center sm:justify-end gap-3">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest text-red-600 hover:bg-red-50 rounded-xl transition-all border-2 border-transparent hover:border-red-100"
+          >
+            <LogOut size={14} className="sm:w-4 sm:h-4" /> Logout
+          </button>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+      {/* Security & Priority Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white border-4 border-[#141414] p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] flex items-center gap-4"
+        >
+          <div className="bg-indigo-100 text-indigo-600 p-4 rounded-2xl border-2 border-[#141414]">
+            <Shield size={24} />
+          </div>
+          <div>
+            <h3 className="font-black uppercase text-xs tracking-widest opacity-40">System Security</h3>
+            <p className="font-bold text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 size={14} /> OS SECURE
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white border-4 border-[#141414] p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] flex items-center gap-4"
+        >
+          <div className="bg-amber-100 text-amber-600 p-4 rounded-2xl border-2 border-[#141414]">
+            <Camera size={24} />
+          </div>
+          <div>
+            <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Camera Status</h3>
+            <p className="font-bold text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 size={14} /> ACTIVE
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white border-4 border-[#141414] p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] flex items-center gap-4"
+        >
+          <div className="bg-emerald-100 text-emerald-600 p-4 rounded-2xl border-2 border-[#141414]">
+            <Accessibility size={24} />
+          </div>
+          <div>
+            <h3 className="font-black uppercase text-xs tracking-widest opacity-40">Priority Mode</h3>
+            <p className="font-bold text-indigo-600 uppercase">
+              {priorityMode}
+            </p>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Exam Stages Progress */}
+      <div className="bg-white border-4 border-[#141414] p-8 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] mb-12">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="bg-indigo-600 text-white p-2 rounded-xl">
+            <Trophy size={20} />
+          </div>
+          <h3 className="font-black uppercase text-sm tracking-widest">Your Exam Journey</h3>
+        </div>
+
+        <div className="relative">
+          <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 z-0" />
+          <div className="relative z-10 flex justify-between">
+            {[
+              { stage: 1, name: 'Registration', status: 'completed' },
+              { stage: 2, name: 'Verification', status: 'completed' },
+              { stage: 3, name: 'Examination', status: 'current' },
+              { stage: 4, name: 'Certification', status: 'upcoming' }
+            ].map((s, i) => (
+              <div key={s.stage} className="flex flex-col items-center gap-3">
+                <div className={`w-10 h-10 rounded-full border-4 border-[#141414] flex items-center justify-center font-black text-sm transition-all ${
+                  s.status === 'completed' ? 'bg-emerald-500 text-white' : 
+                  s.status === 'current' ? 'bg-indigo-600 text-white scale-125 shadow-[4px_4px_0px_0px_rgba(79,70,229,0.3)]' : 
+                  'bg-white text-gray-300'
+                }`}>
+                  {s.status === 'completed' ? <CheckCircle2 size={18} /> : s.stage}
+                </div>
+                <div className="text-center">
+                  <p className={`text-[10px] font-black uppercase tracking-tighter ${s.status === 'current' ? 'text-indigo-600' : 'opacity-40'}`}>
+                    {s.name}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
+        <div className="bg-white border-2 border-[#141414] p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
               <BookOpen size={20} />
             </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Academic Year</h4>
+            <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-widest">Academic Year</h4>
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Year: {user?.year || 'N/A'}</p>
           <div className="flex gap-1">
@@ -173,20 +273,20 @@ export default function StudentDashboard() {
             ))}
           </div>
         </div>
-        <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+        <div className="bg-white border-2 border-[#141414] p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
               <BookOpen size={20} />
             </div>
-            <h4 className="text-xs font-bold uppercase tracking-widest">Department</h4>
+            <h4 className="text-[10px] sm:text-xs font-bold uppercase tracking-widest">Department</h4>
           </div>
           <p className="text-[10px] font-medium opacity-50 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
           <p className="text-sm font-black uppercase">{user?.department} - Section {user?.section}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
+        <div className="lg:col-span-2 space-y-8 sm:space-y-12">
           <section>
             <div className="flex items-center gap-3 mb-6">
               <BookOpen className="text-indigo-600" />
@@ -210,30 +310,30 @@ export default function StudentDashboard() {
                       </h4>
                       <div className="h-px flex-1 bg-indigo-200" />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       {yearQuizzes.map(quiz => {
                         const attempted = isAttempted(quiz.id);
                         return (
                           <motion.div 
                             key={quiz.id} 
                             whileHover={!attempted ? { y: -5 } : {}}
-                            className={`bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between ${attempted ? 'opacity-75 grayscale-[0.5]' : ''}`}
+                            className={`bg-white border-2 border-[#141414] p-5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between ${attempted ? 'opacity-75 grayscale-[0.5]' : ''}`}
                           >
                             <div>
                               <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
+                                <span className="text-[7px] sm:text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-100">
                                   {quiz.department}
                                 </span>
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
+                                <span className="text-[7px] sm:text-[8px] font-bold uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-100">
                                   Sec: {quiz.section}
                                 </span>
-                                <p className="text-[10px] font-bold uppercase opacity-40 ml-2">{quiz.subject}</p>
+                                <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-40 ml-2 truncate max-w-[100px] sm:max-w-none">{quiz.subject}</p>
                               </div>
-                              <h4 className="font-bold text-xl mb-2">{quiz.title}</h4>
+                              <h4 className="font-bold text-lg sm:text-xl mb-2 line-clamp-2">{quiz.title}</h4>
                               <div className="flex flex-col gap-2 mb-6">
-                                <div className="flex items-center gap-4 text-xs opacity-50">
-                                  <div className="flex items-center gap-1"><Clock size={14} /> {quiz.time_limit}m</div>
-                                  <div className="flex items-center gap-1"><BookOpen size={14} /> MCQs</div>
+                                <div className="flex items-center gap-4 text-[10px] sm:text-xs opacity-50">
+                                  <div className="flex items-center gap-1"><Clock size={12} className="sm:w-[14px] sm:h-[14px]" /> {quiz.time_limit}m</div>
+                                  <div className="flex items-center gap-1"><BookOpen size={12} className="sm:w-[14px] sm:h-[14px]" /> MCQs</div>
                                 </div>
                                 {(() => {
                                   const expiry = quiz.expires_at || quiz.priority_category;
@@ -418,16 +518,16 @@ export default function StudentDashboard() {
 
       <AnimatePresence>
         {selectedAttempt && (
-          <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+          <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 z-[100]">
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]"
+              initial={{ y: '100%', opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="bg-white border-t-2 sm:border-2 border-[#141414] w-full max-w-2xl rounded-t-[2rem] sm:rounded-3xl overflow-hidden flex flex-col h-full sm:h-auto max-h-[100vh] sm:max-h-[90vh]"
             >
               <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center bg-gray-50">
                 <div>
-                  <h3 className="text-xl font-bold uppercase tracking-tight">{selectedAttempt.title}</h3>
+                  <h3 className="text-lg sm:text-xl font-bold uppercase tracking-tight">{selectedAttempt.title}</h3>
                   <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Score: {selectedAttempt.score}/{selectedAttempt.total_questions}</p>
                 </div>
                 <button 

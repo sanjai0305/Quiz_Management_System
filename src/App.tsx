@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { User } from './types';
-import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
-import StudentDashboard from './pages/StudentDashboard';
-import StudentPreview from './pages/StudentPreview';
-import QuizPage from './pages/QuizPage';
-import SeedData from './components/SeedData';
+import { User } from './shared/types';
+import Login from './shared/pages/Login';
+import AdminDashboard from './apps/admin/pages/AdminDashboard';
+import StudentDashboard from './apps/student/pages/StudentDashboard';
+import StudentPreview from './apps/admin/pages/StudentPreview';
+import QuizPage from './apps/student/pages/QuizPage';
+import SeedData from './shared/components/SeedData';
 import { AlertCircle } from 'lucide-react';
 
 interface AuthContextType {
@@ -46,7 +46,13 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode, role: 'admin'
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-[#E4E3E0] p-3 sm:p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
+        {children}
+      </div>
+    </div>
+  );
 };
 
 export default function App() {

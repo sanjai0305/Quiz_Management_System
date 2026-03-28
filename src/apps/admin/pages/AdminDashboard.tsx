@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../App';
-import { User, Quiz, Attempt } from '../types';
-import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw, LogOut } from 'lucide-react';
+import { useAuth } from '../../../App';
+import { User, Quiz, Attempt } from '../../../shared/types';
+import { Users, BookOpen, Trophy, Plus, Save, Trash2, User as UserIcon, Pencil, Eye, X, Upload, ChevronRight, Clock, Send, Cpu, AlertCircle, ShieldCheck, FileSpreadsheet, FileText, Mail, RefreshCw, LogOut, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../shared/lib/supabase';
+
+import SecurityDashboard from './SecurityDashboard';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'security'>('students');
   const { token, user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -21,8 +23,8 @@ export default function AdminDashboard() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex justify-between items-start w-full md:w-auto">
           <div>
-            <h2 className="text-4xl font-black tracking-tighter uppercase">ADMIN {user?.name}</h2>
-            <p className="text-sm font-medium uppercase tracking-widest opacity-50">System Management & Oversight</p>
+            <h2 className="text-2xl sm:text-4xl font-black tracking-tighter uppercase">ADMIN {user?.name}</h2>
+            <p className="text-[10px] sm:text-sm font-medium uppercase tracking-widest opacity-50">System Management & Oversight</p>
           </div>
           <button 
             onClick={handleLogout}
@@ -32,11 +34,12 @@ export default function AdminDashboard() {
           </button>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] overflow-x-auto">
+        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+          <div className="flex bg-white border-2 border-[#141414] p-1 rounded-xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] whitespace-nowrap">
             <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={18} />} label="Students" />
             <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={18} />} label="Quizzes" />
             <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={18} />} label="Leaderboard" />
+            <TabButton active={activeTab === 'security'} onClick={() => setActiveTab('security')} icon={<Shield size={18} />} label="Security" />
           </div>
           <button 
             onClick={handleLogout}
@@ -52,6 +55,7 @@ export default function AdminDashboard() {
         {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
         {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
         {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
+        {activeTab === 'security' && <div key="security"><SecurityDashboard /></div>}
       </AnimatePresence>
     </div>
   );
@@ -159,25 +163,25 @@ function StudentManager({ token }: { token: string }) {
       </div>
 
       {/* Drill-down Navigation */}
-      <div className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-sm">
+      <div className="bg-white border-2 border-[#141414] p-4 sm:p-8 rounded-2xl sm:rounded-[2.5rem] shadow-brutal-sm">
         {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 mb-8 text-[10px] font-black uppercase tracking-widest">
+        <div className="flex items-center gap-2 mb-4 sm:mb-8 text-[9px] sm:text-[10px] font-black uppercase tracking-widest overflow-x-auto whitespace-nowrap pb-2 sm:pb-0 scrollbar-hide">
           <button onClick={resetNav} className={`hover:text-indigo-600 transition-colors ${!selectedYear ? 'text-indigo-600' : 'opacity-40'}`}>Registry</button>
           {selectedYear && (
             <>
-              <ChevronRight size={12} className="opacity-20" />
+              <ChevronRight size={10} className="opacity-20 sm:w-3 sm:h-3" />
               <button onClick={() => { setSelectedDept(null); setSelectedSection(null); }} className={`hover:text-indigo-600 transition-colors ${!selectedDept ? 'text-indigo-600' : 'opacity-40'}`}>{selectedYear}{selectedYear === 1 ? 'st' : selectedYear === 2 ? 'nd' : selectedYear === 3 ? 'rd' : 'th'} Year</button>
             </>
           )}
           {selectedDept && (
             <>
-              <ChevronRight size={12} className="opacity-20" />
+              <ChevronRight size={10} className="opacity-20 sm:w-3 sm:h-3" />
               <button onClick={() => setSelectedSection(null)} className={`hover:text-indigo-600 transition-colors ${!selectedSection ? 'text-indigo-600' : 'opacity-40'}`}>{selectedDept}</button>
             </>
           )}
           {selectedSection && (
             <>
-              <ChevronRight size={12} className="opacity-20" />
+              <ChevronRight size={10} className="opacity-20 sm:w-3 sm:h-3" />
               <span className="text-indigo-600">Section {selectedSection}</span>
             </>
           )}
@@ -191,17 +195,17 @@ function StudentManager({ token }: { token: string }) {
           <div className="space-y-8">
             {/* Level 1: Year Selection */}
             {!selectedYear && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
                 {[1, 2, 3, 4].map(year => (
                   <button 
                     key={year}
                     onClick={() => setSelectedYear(year)}
-                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                    className="group bg-white border-2 border-[#141414] p-4 sm:p-8 rounded-xl sm:rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-3 sm:gap-4"
                   >
-                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      <span className="text-2xl font-black">{year}</span>
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-indigo-50 text-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <span className="text-xl sm:text-2xl font-black">{year}</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest">Year {year}</span>
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Year {year}</span>
                   </button>
                 ))}
               </div>
@@ -209,17 +213,17 @@ function StudentManager({ token }: { token: string }) {
 
             {/* Level 2: Department Selection */}
             {selectedYear && !selectedDept && (
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-6">
                 {['AIML', 'IT'].map(dept => (
                   <button 
                     key={dept}
                     onClick={() => setSelectedDept(dept)}
-                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                    className="group bg-white border-2 border-[#141414] p-4 sm:p-8 rounded-xl sm:rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-3 sm:gap-4"
                   >
-                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                      <Cpu size={32} />
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 text-emerald-600 rounded-xl sm:rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <Cpu size={24} className="sm:w-8 sm:h-8" />
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest">{dept} Dept</span>
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">{dept} Dept</span>
                   </button>
                 ))}
               </div>
@@ -227,17 +231,17 @@ function StudentManager({ token }: { token: string }) {
 
             {/* Level 3: Section Selection */}
             {selectedYear && selectedDept && !selectedSection && (
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-6">
                 {['A', 'B'].map(sec => (
                   <button 
                     key={sec}
                     onClick={() => setSelectedSection(sec)}
-                    className="group bg-white border-2 border-[#141414] p-8 rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-4"
+                    className="group bg-white border-2 border-[#141414] p-4 sm:p-8 rounded-xl sm:rounded-3xl shadow-brutal-sm hover:shadow-brutal hover:-translate-y-1 transition-all flex flex-col items-center gap-3 sm:gap-4"
                   >
-                    <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                      <span className="text-2xl font-black">{sec}</span>
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-amber-50 text-amber-600 rounded-xl sm:rounded-2xl flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                      <span className="text-xl sm:text-2xl font-black">{sec}</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest">Section {sec}</span>
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Section {sec}</span>
                   </button>
                 ))}
               </div>
@@ -362,11 +366,15 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
     : '0';
 
   return (
-    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-2xl rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-8 border-b border-[#141414]/10 flex justify-between items-center">
+    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 z-[150]">
+      <motion.div 
+        initial={{ y: '100%', opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        className="bg-white border-t-2 sm:border-2 border-[#141414] w-full max-w-2xl rounded-t-[2rem] sm:rounded-[3rem] overflow-hidden flex flex-col h-full sm:h-auto max-h-[100vh] sm:max-h-[90vh]"
+      >
+        <div className="p-6 sm:p-8 border-b border-[#141414]/10 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <h3 className="text-xl font-black uppercase tracking-tight">Student Profile</h3>
+            <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight">Student Profile</h3>
             <button 
               onClick={onDelete}
               className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
@@ -378,24 +386,24 @@ function StudentProfileModal({ student, onClose, onDelete, token, quizzes, attem
           <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
 
-        <div className="p-8 overflow-y-auto space-y-8">
-          <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
-            <div className="w-32 h-32 bg-indigo-50 border-2 border-[#141414] rounded-3xl overflow-hidden shadow-brutal-sm">
+        <div className="p-6 sm:p-8 overflow-y-auto space-y-8">
+          <div className="flex flex-col md:flex-row gap-6 sm:gap-8 items-center md:items-start">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-indigo-50 border-2 border-[#141414] rounded-2xl sm:rounded-3xl overflow-hidden shadow-brutal-sm">
               {student.profile_picture ? (
                 <img src={student.profile_picture} alt={student.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={48} /></div>
+                <div className="w-full h-full flex items-center justify-center text-indigo-600"><UserIcon size={32} /></div>
               )}
             </div>
             <div className="flex-1 text-center md:text-left space-y-4">
               <div>
-                <h4 className="text-3xl font-black uppercase tracking-tighter leading-none">{student.name}</h4>
-                <p className="text-sm font-mono font-bold text-indigo-600 mt-2">{student.registration_number}</p>
+                <h4 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none">{student.name}</h4>
+                <p className="text-xs sm:text-sm font-mono font-bold text-indigo-600 mt-2">{student.registration_number}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-bold uppercase opacity-30">Academic Year</p>
-                  <p className="font-bold text-lg">{student.year || 1}{student.year === 1 ? 'st' : student.year === 2 ? 'nd' : student.year === 3 ? 'rd' : 'th'} Year</p>
+                  <p className="font-bold text-base sm:text-lg">{student.year || 1}{student.year === 1 ? 'st' : student.year === 2 ? 'nd' : student.year === 3 ? 'rd' : 'th'} Year</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase opacity-30">Department</p>
@@ -547,10 +555,14 @@ function AddStudentModal({ onClose, onAdded, token }: { onClose: () => void, onA
   };
 
   return (
-    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-md rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 z-[100]">
+      <motion.div 
+        initial={{ y: '100%', opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        className="bg-white border-t-2 sm:border-2 border-[#141414] w-full max-w-md rounded-t-[2rem] sm:rounded-3xl overflow-hidden flex flex-col h-full sm:h-auto max-h-[100vh] sm:max-h-[90vh]"
+      >
         <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center">
-          <h3 className="text-xl font-bold uppercase tracking-tight">New Student Enrollment</h3>
+          <h3 className="text-lg sm:text-xl font-bold uppercase tracking-tight">New Student Enrollment</h3>
           <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
 
@@ -1112,10 +1124,14 @@ function QuizModal({ onClose, onAdded, token, quizId }: { onClose: () => void, o
   if (isLoading) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white border-2 border-[#141414] w-full max-w-4xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-[#141414]/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 z-[100]">
+      <motion.div 
+        initial={{ y: '100%', opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        className="bg-white border-t-2 sm:border-2 border-[#141414] w-full max-w-4xl rounded-t-[2rem] sm:rounded-3xl overflow-hidden flex flex-col h-full sm:h-auto max-h-[100vh] sm:max-h-[90vh]"
+      >
         <div className="p-6 border-b border-[#141414]/10 flex justify-between items-center">
-          <h3 className="text-xl font-bold uppercase tracking-tight">{quizId ? 'Edit Quiz' : 'Quiz Architect'}</h3>
+          <h3 className="text-lg sm:text-xl font-bold uppercase tracking-tight">{quizId ? 'Edit Quiz' : 'Quiz Architect'}</h3>
           <button onClick={onClose} className="text-sm font-bold opacity-50 hover:opacity-100">CLOSE</button>
         </div>
 
@@ -1371,8 +1387,8 @@ function LeaderboardView({ token }: { token: string }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <div className="bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-brutal-sm flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[150px]">
+      <div className="bg-white border-2 border-[#141414] p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-brutal-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="w-full">
           <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Year</label>
           <select 
             value={filters.year} 
@@ -1386,7 +1402,7 @@ function LeaderboardView({ token }: { token: string }) {
             <option value="4">4th Year</option>
           </select>
         </div>
-        <div className="flex-1 min-w-[150px]">
+        <div className="w-full">
           <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Department</label>
           <select 
             value={filters.department} 
@@ -1401,7 +1417,7 @@ function LeaderboardView({ token }: { token: string }) {
             <option value="MECH">MECH</option>
           </select>
         </div>
-        <div className="flex-1 min-w-[150px]">
+        <div className="w-full">
           <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Section</label>
           <select 
             value={filters.section} 
@@ -1499,103 +1515,6 @@ function LeaderboardView({ token }: { token: string }) {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function NotificationCenter({ token }: { token: string }) {
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  const handleSend = async () => {
-    if (!message.trim()) return;
-    setSending(true);
-    setStatus(null);
-    try {
-      const res = await fetch('/api/notifications/send-manual', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ message })
-      });
-      if (res.ok) {
-        setStatus({ type: 'success', text: 'Notification sent successfully to all registered students!' });
-        setMessage('');
-      } else {
-        throw new Error('Failed to send notification');
-      }
-    } catch (err) {
-      setStatus({ type: 'error', text: 'Error sending notification. Please check your bot token.' });
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white border-2 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal max-w-2xl mx-auto"
-    >
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-brutal-sm">
-          <Send size={24} />
-        </div>
-        <div>
-          <h3 className="text-2xl font-black uppercase tracking-tighter">Telegram Alerts</h3>
-          <p className="text-xs font-bold uppercase opacity-40 tracking-widest">Send manual notifications to students</p>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Message Content</label>
-          <textarea 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message here... (e.g., Important update regarding tomorrow's quiz!)"
-            className="w-full p-6 bg-gray-50 border-2 border-[#141414] rounded-2xl font-medium min-h-[150px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
-          />
-        </div>
-
-        {status && (
-          <div className={`p-4 rounded-xl border-2 flex items-center gap-3 ${status.type === 'success' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
-            <AlertCircle size={18} />
-            <p className="text-xs font-bold uppercase tracking-wide">{status.text}</p>
-          </div>
-        )}
-
-        <button 
-          onClick={handleSend}
-          disabled={sending || !message.trim()}
-          className="w-full bg-[#141414] text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-[#2a2a2a] transition-all shadow-brutal-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {sending ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <>
-              <Send size={18} />
-              Send Notification
-            </>
-          )}
-        </button>
-
-        <div className="pt-6 border-t border-[#141414]/5">
-          <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
-            <ShieldCheck className="text-indigo-600 mt-0.5" size={16} />
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-900">Security Note</p>
-              <p className="text-[10px] font-medium text-indigo-700 leading-relaxed">
-                This will send a message to all students who have registered their Telegram Chat ID in their dashboard. 
-                Ensure your <code className="bg-white px-1 rounded">TELEGRAM_BOT_TOKEN</code> is correctly set in the environment.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </motion.div>

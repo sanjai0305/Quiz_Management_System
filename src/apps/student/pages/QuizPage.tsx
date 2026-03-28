@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
-import { Quiz, Question } from '../types';
+import { useAuth } from '../../../App';
+import { Quiz, Question } from '../../../shared/types';
 import { Clock, ChevronLeft, ChevronRight, Send, AlertCircle, Loader2, ShieldCheck, Shield, Camera, UserCheck, Layout, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import emailjs from '@emailjs/browser';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../shared/lib/supabase';
+import { SecurityMonitor } from '../../../shared/components/SecurityMonitor';
 
 export default function QuizPage() {
   const { id } = useParams();
@@ -760,42 +761,43 @@ export default function QuizPage() {
   const progress = ((currentIdx + 1) / (quiz.questions?.length || 1)) * 100;
 
   return (
-    <div className="max-w-6xl mx-auto relative">
-      <div className="space-y-8">
-        <header className="sticky top-[72px] z-40 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
-        <div>
-          <h2 className="text-xl font-bold uppercase tracking-tight">{quiz.title}</h2>
-          <p className="text-[10px] font-bold uppercase opacity-40">{quiz.subject} • {quiz.year}{quiz.year === 1 ? 'st' : quiz.year === 2 ? 'nd' : quiz.year === 3 ? 'rd' : 'th'} Year</p>
+    <div className="max-w-6xl mx-auto relative px-3 sm:px-0">
+      <SecurityMonitor />
+      <div className="space-y-6 sm:space-y-8">
+        <header className="sticky top-[72px] z-40 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/90 backdrop-blur-md border-2 border-[#141414] p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] mb-4">
+        <div className="text-center sm:text-left">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-tight line-clamp-1">{quiz.title}</h2>
+          <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-40">{quiz.subject} • {quiz.year}{quiz.year === 1 ? 'st' : quiz.year === 2 ? 'nd' : quiz.year === 3 ? 'rd' : 'th'} Year</p>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           {quiz.question_timer && quiz.question_timer > 0 && (
-            <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
+            <div className={`flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 ${
               questionTimeLeft < 5 
                 ? 'bg-amber-500 border-[#141414] text-white animate-pulse' 
                 : 'bg-amber-50 border-[#141414] text-amber-700 shadow-[4px_4px_0px_0px_rgba(245,158,11,0.3)]'
             }`}>
-              <Clock size={20} />
+              <Clock size={16} className="sm:w-5 sm:h-5" />
               <div className="flex flex-col">
-                <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Question Time</span>
-                <span className="font-mono font-black text-xl leading-none">{questionTimeLeft}s</span>
+                <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60">Q-Time</span>
+                <span className="font-mono font-black text-sm sm:text-xl leading-none">{questionTimeLeft}s</span>
               </div>
             </div>
           )}
-          <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all duration-300 ${
+          <div className={`flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 ${
             timeLeft < 60 
               ? 'bg-red-600 border-[#141414] text-white shadow-[4px_4px_0px_0px_rgba(220,38,38,0.3)] animate-pulse' 
               : 'bg-white border-[#141414] text-[#141414] shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]'
           }`}>
-            <Clock size={24} />
+            <Clock size={18} className="sm:w-6 sm:h-6" />
             <div className="flex flex-col">
-              <span className="text-[8px] font-black uppercase tracking-widest opacity-60">Time Remaining</span>
-              <span className="font-mono font-black text-2xl leading-none">
+              <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest opacity-60">Remaining</span>
+              <span className="font-mono font-black text-base sm:text-2xl leading-none">
                 {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
               </span>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5">
+          <div className="hidden md:flex items-center gap-1.5">
             {quiz.questions?.map((q, i) => {
               const isCurrent = i === currentIdx;
               const isAnswered = !!answers[q.id];
@@ -823,15 +825,15 @@ export default function QuizPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="bg-white border-2 border-[#141414] p-8 md:p-12 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] space-y-10"
+            className="bg-white border-2 border-[#141414] p-6 sm:p-8 md:p-12 rounded-2xl sm:rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] space-y-6 sm:space-y-10"
           >
             <div className="flex justify-between items-start gap-4">
-              <h3 className="font-black tracking-tight leading-tight text-3xl">
+              <h3 className="font-black tracking-tight leading-tight text-xl sm:text-3xl">
                 {currentIdx + 1}. {currentQuestion.question_text}
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {['a', 'b', 'c', 'd'].map(opt => {
                 const optKey = `option_${opt}` as keyof Question;
                 const originalKey = currentQuestion.option_mapping?.[opt] || opt;
@@ -840,18 +842,18 @@ export default function QuizPage() {
                   <button
                     key={opt}
                     onClick={() => setAnswers({ ...answers, [currentQuestion.id]: originalKey })}
-                    className={`p-6 text-left rounded-2xl border-2 transition-all flex items-center gap-4 group ${
+                    className={`p-4 sm:p-6 text-left rounded-xl sm:rounded-2xl border-2 transition-all flex items-center gap-3 sm:gap-4 group ${
                       isSelected 
                         ? 'bg-[#141414] border-[#141414] text-white shadow-[4px_4px_0px_0px_rgba(79,70,229,0.4)]' 
                         : 'bg-white border-[#141414]/10 hover:border-[#141414] text-[#141414]'
                     }`}
                   >
-                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold uppercase transition-colors ${
+                    <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-xs sm:text-base font-bold uppercase transition-colors ${
                       isSelected ? 'bg-white/20' : 'bg-gray-100 group-hover:bg-gray-200'
                     }`}>
                       {opt}
                     </span>
-                    <span className="font-bold">{currentQuestion[optKey] as string}</span>
+                    <span className="font-bold text-sm sm:text-base">{currentQuestion[optKey] as string}</span>
                   </button>
                 );
               })}
@@ -860,21 +862,21 @@ export default function QuizPage() {
         )}
       </AnimatePresence>
 
-      <footer className="flex justify-between items-center bg-white border-2 border-[#141414] p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+      <footer className="flex justify-between items-center bg-white border-2 border-[#141414] p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
         <button 
           onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))}
           disabled={currentIdx === 0}
-          className="px-6 py-3 border-2 border-[#141414] rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-gray-50 transition-all disabled:opacity-30"
+          className="px-3 py-2 sm:px-6 sm:py-3 border-2 border-[#141414] rounded-lg sm:rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest flex items-center gap-1 sm:gap-2 hover:bg-gray-50 transition-all disabled:opacity-30"
         >
-          <ChevronLeft size={18} /> Previous
+          <ChevronLeft size={14} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span>
         </button>
 
         <div className="flex flex-col items-center">
-          <div className="text-xs font-bold uppercase tracking-widest opacity-30">
-            Question {currentIdx + 1} of {quiz.questions?.length}
+          <div className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-30">
+            Q {currentIdx + 1} of {quiz.questions?.length}
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">
-            {Object.keys(answers).length} Answered
+          <div className="text-[7px] sm:text-[10px] font-bold uppercase tracking-widest text-emerald-600">
+            {Object.keys(answers).length} Ans
           </div>
         </div>
 
@@ -882,16 +884,16 @@ export default function QuizPage() {
           <button 
             onClick={() => handleSubmit()}
             disabled={isSubmitting}
-            className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,0.3)]"
+            className="px-4 py-2 sm:px-8 sm:py-3 bg-emerald-600 text-white rounded-lg sm:rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest flex items-center gap-1 sm:gap-2 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,0.3)]"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Quiz'} <Send size={18} />
+            {isSubmitting ? '...' : 'Submit'} <Send size={14} className="sm:w-[18px] sm:h-[18px]" />
           </button>
         ) : (
           <button 
             onClick={() => setCurrentIdx(prev => prev + 1)}
-            className="px-6 py-3 bg-[#141414] text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-[#2a2a2a] transition-all"
+            className="px-4 py-2 sm:px-6 sm:py-3 bg-[#141414] text-white rounded-lg sm:rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest flex items-center gap-1 sm:gap-2 hover:bg-[#2a2a2a] transition-all"
           >
-            Next <ChevronRight size={18} />
+            Next <ChevronRight size={14} className="sm:w-[18px] sm:h-[18px]" />
           </button>
         )}
       </footer>

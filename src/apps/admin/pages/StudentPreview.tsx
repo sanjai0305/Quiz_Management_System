@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
-import { Quiz, User } from '../types';
+import { useAuth } from '../../../App';
+import { Quiz, User } from '../../../shared/types';
 import { BookOpen, Trophy, Clock, ChevronRight, ShieldCheck, Camera, Accessibility, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../shared/lib/supabase';
 
 export default function StudentPreview() {
   const { id } = useParams();
