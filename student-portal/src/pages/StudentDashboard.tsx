@@ -145,6 +145,43 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {/* Exam Stages Progress */}
+      <div className="bg-white border-4 border-[#141414] p-8 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] mb-12">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="bg-indigo-600 text-white p-2 rounded-xl">
+            <Trophy size={20} />
+          </div>
+          <h3 className="font-black uppercase text-sm tracking-widest">Your Exam Journey</h3>
+        </div>
+
+        <div className="relative">
+          <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 z-0" />
+          <div className="relative z-10 flex justify-between">
+            {[
+              { stage: 1, name: 'Registration', status: 'completed' },
+              { stage: 2, name: 'Verification', status: 'completed' },
+              { stage: 3, name: 'Examination', status: 'current' },
+              { stage: 4, name: 'Certification', status: 'upcoming' }
+            ].map((s, i) => (
+              <div key={s.stage} className="flex flex-col items-center gap-3">
+                <div className={`w-10 h-10 rounded-full border-4 border-[#141414] flex items-center justify-center font-black text-sm transition-all ${
+                  s.status === 'completed' ? 'bg-emerald-500 text-white' : 
+                  s.status === 'current' ? 'bg-indigo-600 text-white scale-125 shadow-[4px_4px_0px_0px_rgba(79,70,229,0.3)]' : 
+                  'bg-white text-gray-300'
+                }`}>
+                  {s.status === 'completed' ? <ShieldCheck size={18} /> : s.stage}
+                </div>
+                <div className="text-center">
+                  <p className={`text-[10px] font-black uppercase tracking-tighter ${s.status === 'current' ? 'text-indigo-600' : 'opacity-40'}`}>
+                    {s.name}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-8">
           <section>

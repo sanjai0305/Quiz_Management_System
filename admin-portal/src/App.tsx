@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { User } from './types';
-import Login from './pages/Login';
+import { User } from './shared/types';
+import Login from './shared/pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import StudentPreview from './pages/StudentPreview';
-import { Layout } from './components/Layout';
-import SeedData from './components/SeedData';
+import SeedData from './shared/components/SeedData';
 
 interface AuthContextType {
   user: User | null;
@@ -15,8 +14,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://quiz-management-system-f8wm.onrender.com';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -45,7 +42,13 @@ const ProtectedRoute = ({ children, role }: { children: ReactNode, role: 'admin'
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-[#E4E3E0] p-3 sm:p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
+        {children}
+      </div>
+    </div>
+  );
 };
 
 export default function App() {
@@ -79,26 +82,23 @@ export default function App() {
         <SeedData />
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route element={<Layout />}>
-            <Route
-              path="/admin/*"
-              element={
-                <ProtectedRoute role="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/student-preview/:id"
-              element={
-                <ProtectedRoute role="admin">
-                  <StudentPreview />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/" element={<Navigate to="/admin" replace />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute role="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student-preview/:id"
+            element={
+              <ProtectedRoute role="admin">
+                <StudentPreview />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>
