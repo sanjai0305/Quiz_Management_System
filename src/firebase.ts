@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, getDocFromServer } from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -8,8 +8,73 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
+// Test Connection
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firebase connection successful");
+  } catch (error) {
+    if(error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration. The client is offline.");
+    }
+  }
+}
+testConnection();
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 // Simple trigger function for Admin
 export const sendQuizTrigger = async () => {
+  const path = 'triggers/quiz_updates';
   try {
     // Ensure we are authenticated (anonymously for simplicity in this demo)
     if (!auth.currentUser) {
@@ -23,7 +88,7 @@ export const sendQuizTrigger = async () => {
     });
     console.log('Real-time trigger sent via Firebase');
   } catch (error) {
-    console.error('Error sending trigger:', error);
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 };
 
@@ -32,6 +97,7 @@ import { useEffect } from 'react';
 
 export const useQuizTriggerListener = (onTrigger: () => void) => {
   useEffect(() => {
+    const path = 'triggers/quiz_updates';
     const triggerRef = doc(db, 'triggers', 'quiz_updates');
     
     // Start listening for changes
@@ -41,7 +107,7 @@ export const useQuizTriggerListener = (onTrigger: () => void) => {
         onTrigger();
       }
     }, (error) => {
-      console.error('Error listening to trigger:', error);
+      handleFirestoreError(error, OperationType.GET, path);
     });
 
     return () => unsubscribe();

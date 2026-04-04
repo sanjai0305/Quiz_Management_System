@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { supabase } from './shared/lib/supabase';
 import { User } from './shared/types';
@@ -10,6 +10,62 @@ import SecurityDashboard from './pages/admin/SecurityDashboard';
 import StudentPreview from './pages/admin/StudentPreview';
 import { Shield, User as UserIcon, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// --- Error Boundary ---
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "Something went wrong.";
+      try {
+        const parsedError = JSON.parse(this.state.error?.message || "{}");
+        if (parsedError.error) {
+          errorMessage = `Firestore Error: ${parsedError.error} during ${parsedError.operationType} on ${parsedError.path}`;
+        }
+      } catch (e) {
+        errorMessage = this.state.error?.message || errorMessage;
+      }
+
+      return (
+        <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-red-600 p-8 rounded-3xl shadow-brutal-lg max-w-lg w-full space-y-4">
+            <h2 className="text-2xl font-black text-red-600 uppercase tracking-tight">Application Error</h2>
+            <p className="text-sm font-bold text-gray-700">{errorMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-red-700 transition-all"
+            >
+              Reload Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 // --- Theme Context ---
 interface ThemeContextType {
@@ -188,57 +244,59 @@ function LandingPage() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <ThemeToggle />
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            
-            {/* Auth Routes */}
-            <Route path="/login" element={<UnifiedLogin />} />
-            <Route path="/admin/login" element={<UnifiedLogin />} />
-            <Route path="/student/login" element={<UnifiedLogin />} />
-            
-            {/* Admin Routes */}
-            <Route path="/admin" element={
-              <ProtectedRoute role="admin">
-                <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">
-                  <AdminDashboard />
-                </div>
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/security" element={
-              <ProtectedRoute role="admin">
-                <SecurityDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/preview/:studentId" element={
-              <ProtectedRoute role="admin">
-                <StudentPreview />
-              </ProtectedRoute>
-            } />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <ThemeToggle />
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              
+              {/* Auth Routes */}
+              <Route path="/login" element={<UnifiedLogin />} />
+              <Route path="/admin/login" element={<UnifiedLogin />} />
+              <Route path="/student/login" element={<UnifiedLogin />} />
+              
+              {/* Admin Routes */}
+              <Route path="/admin" element={
+                <ProtectedRoute role="admin">
+                  <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">
+                    <AdminDashboard />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/security" element={
+                <ProtectedRoute role="admin">
+                  <SecurityDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/preview/:studentId" element={
+                <ProtectedRoute role="admin">
+                  <StudentPreview />
+                </ProtectedRoute>
+              } />
 
-            {/* Student Routes */}
-            <Route path="/student/login" element={<UnifiedLogin />} />
-            <Route path="/student" element={
-              <ProtectedRoute role="student">
-                <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">
-                  <StudentDashboard />
-                </div>
-              </ProtectedRoute>
-            } />
-            <Route path="/student/quiz/:quizId" element={
-              <ProtectedRoute role="student">
-                <QuizPage />
-              </ProtectedRoute>
-            } />
+              {/* Student Routes */}
+              <Route path="/student/login" element={<UnifiedLogin />} />
+              <Route path="/student" element={
+                <ProtectedRoute role="student">
+                  <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">
+                    <StudentDashboard />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/student/quiz/:quizId" element={
+                <ProtectedRoute role="student">
+                  <QuizPage />
+                </ProtectedRoute>
+              } />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
