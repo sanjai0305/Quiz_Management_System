@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "Trigger": {
+      "title": "Real-time Trigger",
+      "description": "A document to signal real-time updates to clients.",
+      "type": "object",
+      "properties": {
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp of the last quiz update."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["quiz_created", "quiz_updated"],
+          "description": "The type of update."
+        }
+      },
+      "required": ["lastUpdated"]
+    }
+  },
+  "firestore": {
+    "/triggers/{triggerId}": {
+      "schema": "Trigger",
+      "description": "A collection of real-time triggers."
+    }
+  }
+}

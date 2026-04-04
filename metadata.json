@@ -1,0 +1,5 @@
+{
+  "name": "SmartQuiz AI - Face Verified Quiz System",
+  "description": "A secure quiz management system featuring face verification, accessibility priorities, and stage-wise learning for students.",
+  "requestFramePermissions": ["camera", "microphone"]
+}

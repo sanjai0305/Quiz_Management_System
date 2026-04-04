@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Triggers collection
+    match /triggers/{triggerId} {
+      // Allow anyone to read triggers for real-time updates
+      // In a production app, you might want to restrict this to authenticated users
+      allow read: if true;
+      
+      // Only allow admins to write triggers
+      // For simplicity in this prototype, we'll allow authenticated users to write
+      // but in a real app, you'd check for an admin role in the user's document
+      allow write: if isAuthenticated();
+    }
+  }
+}
