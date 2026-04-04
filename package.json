@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "tsx watch server.ts",
+    "dev:frontend": "vite",
     "build": "vite build",
     "start": "tsx server.ts",
     "preview": "vite preview",
@@ -43,7 +44,6 @@
     "@types/nodemailer": "^7.0.11",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "typescript": "~5.8.2"
   }
 }
