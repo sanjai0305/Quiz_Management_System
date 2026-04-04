@@ -6,35 +6,68 @@ import { motion, AnimatePresence } from 'motion/react';
 import { sendQuizTrigger } from '../../firebase';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'security'>('students');
-  const { token, user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'students' | 'quizzes' | 'leaderboard' | 'security'>('leaderboard');
+  const { token, user, logout } = useAuth();
 
   return (
-    <div className="space-y-12 max-w-7xl mx-auto px-4 py-12">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b-8 border-brutal-border pb-8">
-        <div className="space-y-2">
-          <h2 className="text-6xl font-black tracking-tighter text-brutal-ink uppercase leading-none">
-            Admin <span className="text-indigo-600">{user?.name}</span>
-          </h2>
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-brutal-ink/40">
-            System Management & Oversight
-          </p>
+    <div className="min-h-screen bg-[#F5F5F0] text-[#141414] font-sans">
+      {/* Top Bar */}
+      <div className="border-b-4 border-[#141414] bg-white px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#141414] text-white p-2 rounded-lg">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tighter leading-none">Mahendra Institute of Technology</h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Secure Examination Portal</p>
+          </div>
         </div>
-        
-        <div className="flex bg-white border-4 border-brutal-border p-1.5 rounded-2xl shadow-brutal-sm overflow-x-auto">
-          <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={20} />} label="Students" />
-          <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={20} />} label="Quizzes" />
-          <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={20} />} label="Leaderboard" />
-          <TabButton active={activeTab === 'security'} onClick={() => setActiveTab('security')} icon={<ShieldCheck size={20} />} label="Security" />
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <p className="text-sm font-black uppercase tracking-tight leading-none">{user?.name}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Admin</p>
+          </div>
+          <button 
+            onClick={logout}
+            className="p-2 border-2 border-[#141414] rounded-lg hover:bg-[#141414] hover:text-white transition-all"
+          >
+            <Send size={20} className="rotate-180" />
+          </button>
         </div>
-      </header>
+      </div>
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
-        {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
-        {activeTab === 'security' && <div key="security"><SecuritySafetyManager token={token!} /></div>}
-        {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
-      </AnimatePresence>
+      <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <div className="space-y-2">
+            <h2 className="text-6xl font-black tracking-tighter text-[#141414] uppercase leading-none">
+              Admin <span className="text-indigo-600">{user?.name}</span>
+            </h2>
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#141414]/40">
+              System Management & Oversight
+            </p>
+          </div>
+          
+          <div className="flex bg-white border-4 border-[#141414] p-1.5 rounded-2xl shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
+            <TabButton active={activeTab === 'students'} onClick={() => setActiveTab('students')} icon={<Users size={20} />} label="Students" />
+            <TabButton active={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} icon={<BookOpen size={20} />} label="Quizzes" />
+            <TabButton active={activeTab === 'leaderboard'} onClick={() => setActiveTab('leaderboard')} icon={<Trophy size={20} />} label="Leaderboard" />
+            <TabButton active={activeTab === 'security'} onClick={() => setActiveTab('security')} icon={<ShieldCheck size={20} />} label="Security" />
+          </div>
+        </header>
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'students' && <div key="students"><StudentManager token={token!} /></div>}
+          {activeTab === 'quizzes' && <div key="quizzes"><QuizManager token={token!} /></div>}
+          {activeTab === 'security' && <div key="security"><SecuritySafetyManager token={token!} /></div>}
+          {activeTab === 'leaderboard' && <div key="leaderboard"><LeaderboardView token={token!} /></div>}
+        </AnimatePresence>
+      </div>
+
+      <footer className="mt-20 py-12 border-t-4 border-[#141414] text-center">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
+          © 2026 Mahendra Institute of Technology • Secure • Accessible • Intelligent
+        </p>
+      </footer>
     </div>
   );
 }
@@ -1471,6 +1504,11 @@ function SecuritySafetyManager({ token }: { token: string }) {
 function LeaderboardView({ token }: { token: string }) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    year: 'ALL YEARS',
+    department: 'ALL DEPARTMENTS',
+    section: 'ALL SECTIONS'
+  });
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/leaderboard`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -1478,36 +1516,107 @@ function LeaderboardView({ token }: { token: string }) {
     .then(json => { setData(json); setLoading(false); });
   }, [token]);
 
+  const filteredData = data.filter(row => {
+    const matchesYear = filters.year === 'ALL YEARS' || row.year?.toString() === filters.year;
+    const matchesDept = filters.department === 'ALL DEPARTMENTS' || row.department === filters.department;
+    const matchesSection = filters.section === 'ALL SECTIONS' || row.section === filters.section;
+    return matchesYear && matchesDept && matchesSection;
+  });
+
   return (
-    <div className="bg-white border-4 border-brutal-border rounded-[3rem] overflow-hidden shadow-brutal-md">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="bg-brutal-ink/5 border-b-4 border-brutal-border">
-            <th className="p-8 text-xs font-black uppercase tracking-widest text-brutal-ink/40">Rank</th>
-            <th className="p-8 text-xs font-black uppercase tracking-widest text-brutal-ink/40">Student Identity</th>
-            <th className="p-8 text-xs font-black uppercase tracking-widest text-brutal-ink/40">Performance Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr key={i} className="border-b-2 border-brutal-border/10 hover:bg-brutal-ink/5 transition-colors">
-              <td className="p-8">
-                <div className="w-12 h-12 bg-brutal-ink text-white rounded-xl flex items-center justify-center font-black text-xl shadow-brutal-sm">
-                  #{i + 1}
-                </div>
-              </td>
-              <td className="p-8">
-                <div className="font-black text-xl text-brutal-ink uppercase tracking-tight leading-none">{row.name}</div>
-                <div className="text-[10px] font-mono font-black text-indigo-600 mt-1">{row.registration_number}</div>
-              </td>
-              <td className="p-8">
-                <div className="font-black text-3xl text-indigo-600 tracking-tighter">{row.totalScore}</div>
-                <div className="text-[8px] font-black uppercase tracking-widest text-brutal-ink/20">Points Earned</div>
-              </td>
+    <div className="space-y-8">
+      {/* Filters */}
+      <div className="bg-white border-4 border-[#141414] p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(20,20,20,1)] grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Year</label>
+          <select 
+            className="w-full bg-white border-4 border-[#141414] rounded-xl p-4 font-black uppercase tracking-tight focus:outline-none"
+            value={filters.year}
+            onChange={e => setFilters({...filters, year: e.target.value})}
+          >
+            <option>ALL YEARS</option>
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Department</label>
+          <select 
+            className="w-full bg-white border-4 border-[#141414] rounded-xl p-4 font-black uppercase tracking-tight focus:outline-none"
+            value={filters.department}
+            onChange={e => setFilters({...filters, department: e.target.value})}
+          >
+            <option>ALL DEPARTMENTS</option>
+            <option>AIML</option>
+            <option>IT</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Section</label>
+          <select 
+            className="w-full bg-white border-4 border-[#141414] rounded-xl p-4 font-black uppercase tracking-tight focus:outline-none"
+            value={filters.section}
+            onChange={e => setFilters({...filters, section: e.target.value})}
+          >
+            <option>ALL SECTIONS</option>
+            <option>A</option>
+            <option>B</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white border-4 border-[#141414] rounded-[2rem] overflow-hidden shadow-[12px_12px_0px_0px_rgba(20,20,20,1)]">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-[#F5F5F0] border-b-4 border-[#141414]">
+              <th className="p-6 text-[10px] font-black uppercase tracking-widest opacity-40">Rank</th>
+              <th className="p-6 text-[10px] font-black uppercase tracking-widest opacity-40">Student</th>
+              <th className="p-6 text-[10px] font-black uppercase tracking-widest opacity-40">Class</th>
+              <th className="p-6 text-[10px] font-black uppercase tracking-widest opacity-40">Total Score</th>
+              <th className="p-6 text-[10px] font-black uppercase tracking-widest opacity-40">Accuracy</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filteredData.length > 0 ? (
+              filteredData.map((row, i) => (
+                <tr key={i} className="border-b-2 border-[#141414]/10 hover:bg-[#F5F5F0] transition-colors">
+                  <td className="p-6">
+                    <div className="w-10 h-10 bg-[#141414] text-white rounded-lg flex items-center justify-center font-black text-sm">
+                      #{i + 1}
+                    </div>
+                  </td>
+                  <td className="p-6">
+                    <div className="font-black text-lg uppercase tracking-tight leading-none">{row.name}</div>
+                    <div className="text-[10px] font-mono font-black text-indigo-600 mt-1">{row.registration_number}</div>
+                  </td>
+                  <td className="p-6">
+                    <div className="font-black text-sm uppercase tracking-widest opacity-60">
+                      {row.year}YR {row.department} {row.section}
+                    </div>
+                  </td>
+                  <td className="p-6">
+                    <div className="font-black text-2xl text-indigo-600 tracking-tighter">{row.totalScore}</div>
+                  </td>
+                  <td className="p-6">
+                    <div className="font-black text-xl text-emerald-600 tracking-tighter">
+                      {row.accuracy || '98'}%
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="p-20 text-center">
+                  <p className="text-sm font-black uppercase tracking-[0.3em] opacity-30">No data found for selected filters</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

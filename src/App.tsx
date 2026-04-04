@@ -3,9 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 import { supabase } from './shared/lib/supabase';
 import { User } from './shared/types';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminLogin from './pages/admin/Login';
+import UnifiedLogin from './pages/UnifiedLogin';
 import StudentDashboard from './pages/student/StudentDashboard';
-import StudentLogin from './pages/student/Login';
 import QuizPage from './pages/student/QuizPage';
 import SecurityDashboard from './pages/admin/SecurityDashboard';
 import StudentPreview from './pages/admin/StudentPreview';
@@ -143,41 +142,41 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode, role?: 
 // --- Landing Page ---
 function LandingPage() {
   return (
-    <div className="min-h-screen bg-brutal-bg flex items-center justify-center p-8 transition-colors duration-300">
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-8 font-sans">
+      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-12">
         <motion.div 
-          whileHover={{ scale: 1.02 }}
-          className="bg-brutal-bg border-4 border-brutal-border p-12 text-center space-y-8 rounded-3xl shadow-brutal-lg"
+          whileHover={{ y: -10 }}
+          className="bg-white border-4 border-[#141414] p-12 text-center space-y-8 rounded-[2.5rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)]"
         >
-          <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border-2 border-brutal-border">
-            <Shield size={40} />
+          <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto border-4 border-[#141414] shadow-brutal-sm">
+            <Shield size={48} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black uppercase tracking-tight text-brutal-ink">Admin Portal</h2>
-            <p className="text-sm font-bold opacity-50 uppercase tracking-widest text-brutal-ink">Command Center</p>
+            <h2 className="text-4xl font-black uppercase tracking-tighter text-[#141414]">Admin Portal</h2>
+            <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.3em] text-[#141414]">Command & Oversight</p>
           </div>
           <Link 
             to="/admin/login"
-            className="inline-flex items-center justify-center w-full py-4 bg-brutal-ink text-brutal-bg rounded-2xl font-black uppercase tracking-widest hover:opacity-90 transition-all border-2 border-brutal-border shadow-brutal-sm"
+            className="inline-flex items-center justify-center w-full py-5 bg-[#141414] text-white rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-[#2a2a2a] transition-all border-4 border-[#141414] shadow-brutal-sm active:translate-y-1 active:shadow-none"
           >
             Enter System
           </Link>
         </motion.div>
 
         <motion.div 
-          whileHover={{ scale: 1.02 }}
-          className="bg-brutal-bg border-4 border-brutal-border p-12 text-center space-y-8 rounded-3xl shadow-brutal-lg"
+          whileHover={{ y: -10 }}
+          className="bg-white border-4 border-[#141414] p-12 text-center space-y-8 rounded-[2.5rem] shadow-[12px_12px_0px_0px_rgba(20,20,20,1)]"
         >
-          <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto border-2 border-brutal-border">
-            <UserIcon size={40} />
+          <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border-4 border-[#141414] shadow-brutal-sm">
+            <UserIcon size={48} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black uppercase tracking-tight text-brutal-ink">Student Portal</h2>
-            <p className="text-sm font-bold opacity-50 uppercase tracking-widest text-brutal-ink">Learning Environment</p>
+            <h2 className="text-4xl font-black uppercase tracking-tighter text-[#141414]">Student Portal</h2>
+            <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.3em] text-[#141414]">Learning Environment</p>
           </div>
           <Link 
             to="/student/login"
-            className="inline-flex items-center justify-center w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-700 transition-all border-2 border-brutal-border shadow-brutal-sm"
+            className="inline-flex items-center justify-center w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all border-4 border-[#141414] shadow-brutal-sm active:translate-y-1 active:shadow-none"
           >
             Start Learning
           </Link>
@@ -196,8 +195,12 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             
+            {/* Auth Routes */}
+            <Route path="/login" element={<UnifiedLogin />} />
+            <Route path="/admin/login" element={<UnifiedLogin />} />
+            <Route path="/student/login" element={<UnifiedLogin />} />
+            
             {/* Admin Routes */}
-            <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={
               <ProtectedRoute role="admin">
                 <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">
@@ -217,7 +220,7 @@ export default function App() {
             } />
 
             {/* Student Routes */}
-            <Route path="/student/login" element={<StudentLogin />} />
+            <Route path="/student/login" element={<UnifiedLogin />} />
             <Route path="/student" element={
               <ProtectedRoute role="student">
                 <div className="min-h-screen bg-brutal-bg text-brutal-ink p-4 md:p-8">

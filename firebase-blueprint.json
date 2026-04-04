@@ -17,12 +17,53 @@
         }
       },
       "required": ["lastUpdated"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student user in the system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "registration_number": { "type": "string" },
+        "year": { "type": "integer" },
+        "department": { "type": "string" },
+        "section": { "type": "string" },
+        "priority_type": { "type": "string", "enum": ["normal", "child", "disability", "senior"] },
+        "is_safety_secure": { "type": "boolean" },
+        "camera_facilities": { "type": "boolean" },
+        "os_security_status": { "type": "string", "enum": ["secure", "vulnerable", "unknown"] },
+        "current_stage": { "type": "integer" }
+      },
+      "required": ["name", "registration_number", "year", "department", "section"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "An assessment quiz.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "year": { "type": "integer" },
+        "department": { "type": "string" },
+        "section": { "type": "string" },
+        "time_limit": { "type": "integer" },
+        "questions": { "type": "array" }
+      },
+      "required": ["title", "subject", "year", "department", "section", "time_limit"]
     }
   },
   "firestore": {
     "/triggers/{triggerId}": {
       "schema": "Trigger",
       "description": "A collection of real-time triggers."
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "A collection of students."
+    },
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "A collection of quizzes."
     }
   }
 }

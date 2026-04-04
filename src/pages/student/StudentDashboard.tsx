@@ -13,7 +13,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
   const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const navigate = useNavigate();
 
   const fetchData = async () => {
@@ -42,7 +42,6 @@ export default function StudentDashboard() {
     if (token) fetchData();
   }, [token]);
 
-  // Listen for real-time quiz updates via Firebase
   useQuizTriggerListener(() => {
     if (token) fetchData();
   });
@@ -64,423 +63,224 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Verifying Academic Records...</p>
+      <div className="min-h-screen bg-[#F5F5F0] flex flex-col items-center justify-center space-y-6">
+        <div className="w-16 h-16 border-8 border-[#141414] border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-sm font-black uppercase tracking-[0.3em] text-[#141414]/40">Verifying Academic Records...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-10">
-      <header className="flex items-center gap-6">
-        <div className="w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm flex items-center justify-center">
-          {user?.profile_picture ? (
-            <img src={user.profile_picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 w-full h-full flex items-center justify-center">
-              <BookOpen size={32} />
-            </div>
-          )}
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Student Portal</h2>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Welcome back, {user?.name}</p>
-            {user?.year && (
-              <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-100 dark:border-indigo-800">
-                {user.year}{user.year === 1 ? 'st' : user.year === 2 ? 'nd' : user.year === 3 ? 'rd' : 'th'} Year
-              </span>
-            )}
+    <div className="min-h-screen bg-[#F5F5F0] text-[#141414] font-sans pb-20">
+      {/* Top Bar */}
+      <div className="border-b-4 border-[#141414] bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#141414] text-white p-2 rounded-lg">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tighter leading-none">Mahendra Institute of Technology</h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Student Portal</p>
           </div>
         </div>
-      </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg">
-              <BookOpen size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Academic Year</h4>
+        <div className="flex items-center gap-6">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-black uppercase tracking-tight leading-none">{user?.name}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">{user?.registration_number}</p>
           </div>
-          <p className="text-[10px] font-bold text-gray-500 uppercase mb-2">Year: {user?.year || 'N/A'}</p>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4].map(y => (
-              <div key={y} className={`h-1.5 flex-1 rounded-full ${user?.year && user.year >= y ? 'bg-amber-500' : 'bg-gray-100 dark:bg-gray-800'}`} />
-            ))}
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
-              <BookOpen size={20} />
-            </div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Department</h4>
-          </div>
-          <p className="text-[10px] font-bold text-gray-500 uppercase mb-2">Dept: {user?.department || 'N/A'}</p>
-          <p className="text-sm font-bold text-gray-900 dark:text-white uppercase">{user?.department} - Section {user?.section}</p>
+          <button 
+            onClick={logout}
+            className="p-2 border-2 border-[#141414] rounded-lg hover:bg-[#141414] hover:text-white transition-all"
+          >
+            <X size={20} />
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-8">
-          <section>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                <BookOpen className="text-indigo-600 dark:text-indigo-400 w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Available Assessments</h3>
+      <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <div className="space-y-2">
+            <h2 className="text-6xl font-black tracking-tighter text-[#141414] uppercase leading-none">
+              Welcome, <span className="text-indigo-600">{user?.name?.split(' ')[0]}</span>
+            </h2>
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#141414]/40">
+              Academic Dashboard & Assessments
+            </p>
+          </div>
+          
+          <div className="flex gap-4">
+            <div className="bg-white border-4 border-[#141414] p-4 rounded-2xl shadow-brutal-sm">
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Current Year</p>
+              <p className="text-2xl font-black uppercase tracking-tighter">{user?.year}YR</p>
             </div>
-            
-            <div className="space-y-10">
-              {[1, 2, 3, 4].map(year => {
-                const yearQuizzes = quizzes.filter(q => 
-                  q.year === year && 
-                  q.department === user?.department && 
-                  (q.section === 'Both' || q.section === user?.section)
-                );
-                if (yearQuizzes.length === 0) return null;
+            <div className="bg-white border-4 border-[#141414] p-4 rounded-2xl shadow-brutal-sm">
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Department</p>
+              <p className="text-2xl font-black uppercase tracking-tighter">{user?.department}</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Security & Safety Status */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="md:col-span-3 bg-white border-4 border-[#141414] p-8 rounded-[2.5rem] shadow-brutal-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <Shield size={120} />
+            </div>
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-600 text-white rounded-lg">
+                  <ShieldCheck size={20} />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tight">Security & Safety Status</h3>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Priority Type</p>
+                  <p className="text-lg font-black uppercase text-indigo-600">{user?.priority_type || 'Normal'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Safety Status</p>
+                  <p className={`text-lg font-black uppercase ${user?.is_safety_secure ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {user?.is_safety_secure ? 'SECURE' : 'UNSAFE'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Camera Access</p>
+                  <p className={`text-lg font-black uppercase ${user?.camera_facilities ? 'text-indigo-600' : 'text-gray-400'}`}>
+                    {user?.camera_facilities ? 'ACTIVE' : 'DISABLED'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">OS Security</p>
+                  <p className="text-lg font-black uppercase text-indigo-600">{user?.os_security_status || 'SECURE'}</p>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t-2 border-[#141414]/5">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 text-center">Security Verification Stages</p>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map(stage => (
+                    <div 
+                      key={stage}
+                      className={`flex-1 h-3 rounded-full border-2 border-[#141414] transition-all ${
+                        (user?.current_stage || 1) >= stage ? 'bg-indigo-600' : 'bg-[#F5F5F0]'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#141414] text-white p-8 rounded-[2.5rem] shadow-brutal-md flex flex-col justify-between">
+            <div className="space-y-4">
+              <Trophy size={40} className="text-amber-400" />
+              <h3 className="text-2xl font-black uppercase tracking-tight leading-none">Your Rank</h3>
+              <p className="text-5xl font-black tracking-tighter">#{leaderboard.findIndex(r => r.id === user?.id) + 1 || '?'}</p>
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-4">
+              Global MIT Leaderboard
+            </p>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          {/* Quizzes */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white border-4 border-[#141414] rounded-xl">
+                <BookOpen size={24} />
+              </div>
+              <h3 className="text-3xl font-black uppercase tracking-tight">Available Quizzes</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {quizzes.filter(q => 
+                q.year === user?.year && 
+                q.department === user?.department && 
+                (q.section === 'Both' || q.section === user?.section)
+              ).map(quiz => {
+                const attempted = isAttempted(quiz.id);
+                const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > now;
+                const expiry = quiz.expires_at || quiz.priority_category;
+                const isExpired = expiry && new Date(expiry) < now;
+
                 return (
-                  <div key={year} className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 whitespace-nowrap">
-                        {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year Assessments
-                      </h4>
-                      <div className="h-px flex-1 bg-gray-100 dark:bg-gray-800" />
+                  <motion.div 
+                    key={quiz.id}
+                    whileHover={{ y: -8 }}
+                    className="bg-white border-4 border-[#141414] p-8 rounded-[2rem] shadow-brutal-md flex flex-col justify-between gap-8"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-indigo-50 text-indigo-600 border-2 border-indigo-600 rounded-lg">
+                          {quiz.subject}
+                        </span>
+                        {attempted && (
+                          <ShieldCheck size={24} className="text-emerald-600" />
+                        )}
+                      </div>
+                      <h4 className="text-2xl font-black uppercase tracking-tight leading-tight">{quiz.title}</h4>
+                      <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest opacity-40">
+                        <div className="flex items-center gap-1.5"><Clock size={14} /> {quiz.time_limit} MIN</div>
+                        <div className="flex items-center gap-1.5"><BookOpen size={14} /> MCQS</div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {yearQuizzes.map(quiz => {
-                        const attempted = isAttempted(quiz.id);
-                        return (
-                          <motion.div 
-                            key={quiz.id} 
-                            whileHover={!attempted ? { y: -4 } : {}}
-                            className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm flex flex-col justify-between transition-all ${attempted ? 'opacity-60' : ''}`}
-                          >
-                            <div>
-                              <div className="flex items-center gap-2 mb-4">
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-800">
-                                  {quiz.department}
-                                </span>
-                                <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800">
-                                  Sec: {quiz.section}
-                                </span>
-                              </div>
-                              <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2">{quiz.title}</h4>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">{quiz.subject}</p>
-                              
-                              <div className="flex flex-col gap-3 mb-6">
-                                <div className="flex items-center gap-4 text-[10px] font-medium text-gray-400">
-                                  <div className="flex items-center gap-1.5"><Clock size={14} /> {quiz.time_limit}m</div>
-                                  <div className="flex items-center gap-1.5"><BookOpen size={14} /> MCQs</div>
-                                </div>
-                                {(() => {
-                                  const expiry = quiz.expires_at || quiz.priority_category;
-                                  const isExpired = expiry && new Date(expiry) < now;
-                                  return expiry && !attempted && (
-                                    <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 ${isExpired ? 'text-red-500' : 'text-amber-500'}`}>
-                                      <AlertCircle size={12} />
-                                      {isExpired ? 'Expired' : `Ends: ${new Date(expiry).toLocaleString()}`}
-                                    </div>
-                                  );
-                                })()}
-                                {attempted && (
-                                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800 w-fit">
-                                    <ShieldCheck size={14} />
-                                    Attempt Locked
-                                  </div>
-                                )}
-                                {quiz.scheduled_at && !attempted && (
-                                <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 ${new Date(quiz.scheduled_at) > now ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                  <Clock size={12} />
-                                  {(() => {
-                                    const scheduledTime = new Date(quiz.scheduled_at);
-                                    if (scheduledTime > now) {
-                                      const diff = scheduledTime.getTime() - now.getTime();
-                                      const hours = Math.floor(diff / (1000 * 60 * 60));
-                                      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                                      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                                      
-                                      if (hours > 24) return `Starts: ${scheduledTime.toLocaleString()}`;
-                                      return `Starts in: ${hours > 0 ? hours + 'h ' : ''}${minutes}m ${seconds}s`;
-                                    }
-                                    return 'Quiz is Live';
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {(() => {
-                            const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > now;
-                            const expiry = quiz.expires_at || quiz.priority_category;
-                            const isExpired = expiry && new Date(expiry) < now;
-                            const attempted = isAttempted(quiz.id);
-                            
-                            return (
-                              <button 
-                                onClick={() => handleStartQuiz(quiz)}
-                                disabled={attempted || isScheduled || isExpired}
-                                className={`w-full py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all group ${
-                                  attempted 
-                                    ? 'bg-gray-50 dark:bg-gray-800 text-gray-400 cursor-not-allowed' 
-                                    : isScheduled
-                                    ? 'bg-gray-50 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                                    : isExpired
-                                    ? 'bg-red-50 dark:bg-red-900/20 text-red-400 cursor-not-allowed'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-500/20'
-                                }`}
-                              >
-                                {attempted ? (
-                                  <>Locked <ShieldCheck size={14} /></>
-                                ) : isScheduled ? (
-                                  <>Not Started <Clock size={14} /></>
-                                ) : isExpired ? (
-                                  <>Expired <X size={14} /></>
-                                ) : (
-                                  <>Start Quiz <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" /></>
-                                )}
-                              </button>
-                            );
-                          })()}
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
+
+                    <button
+                      onClick={() => handleStartQuiz(quiz)}
+                      disabled={attempted || isScheduled || isExpired}
+                      className={`w-full py-4 rounded-xl font-black uppercase tracking-widest transition-all border-4 border-[#141414] shadow-brutal-sm active:translate-y-1 active:shadow-none ${
+                        attempted ? 'bg-emerald-50 text-emerald-600 border-emerald-600 cursor-not-allowed' :
+                        isScheduled ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
+                        isExpired ? 'bg-red-50 text-red-600 border-red-600 cursor-not-allowed' :
+                        'bg-indigo-600 text-white hover:bg-indigo-700'
+                      }`}
+                    >
+                      {attempted ? 'COMPLETED' : isScheduled ? 'NOT STARTED' : isExpired ? 'EXPIRED' : 'START QUIZ'}
+                    </button>
+                  </motion.div>
                 );
               })}
             </div>
-          </section>
-        </div>
+          </div>
 
-        <div className="space-y-8">
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
-                  <Trophy className="text-amber-600 dark:text-amber-400 w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Leaderboard</h3>
+          {/* Leaderboard Sidebar */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white border-4 border-[#141414] rounded-xl">
+                <Trophy size={24} />
               </div>
-              <span className="text-[10px] font-bold uppercase px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/50">
-                {user?.department}
-              </span>
+              <h3 className="text-3xl font-black uppercase tracking-tight">Leaderboard</h3>
             </div>
-            
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden shadow-xl shadow-gray-200/50 dark:shadow-none">
-              {/* Top 3 Podium Style */}
-              {leaderboard.length >= 3 && (
-                <div className="p-6 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900 border-b border-gray-100 dark:border-gray-800">
-                  <div className="flex items-end justify-center gap-4 sm:gap-8 pt-4 pb-2">
-                    {/* 2nd Place */}
-                    <div className="flex flex-col items-center gap-3 order-1">
-                      <div className="relative">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center text-xl font-bold text-gray-500">
-                          {leaderboard[1].name.charAt(0)}
-                        </div>
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-gray-300 border-2 border-white dark:border-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-700">2</div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-gray-900 dark:text-white truncate max-w-[80px]">{leaderboard[1].name}</p>
-                        <p className="text-[8px] font-bold text-gray-400">{leaderboard[1].totalScore} pts</p>
-                      </div>
-                    </div>
 
-                    {/* 1st Place */}
-                    <div className="flex flex-col items-center gap-3 order-2 -translate-y-4">
-                      <div className="relative">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-amber-50 dark:bg-amber-900/20 border-4 border-amber-400 flex items-center justify-center text-2xl font-bold text-amber-600">
-                          {leaderboard[0].name.charAt(0)}
-                        </div>
-                        <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-amber-400 border-2 border-white dark:border-gray-900 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                          <Trophy size={14} />
-                        </div>
+            <div className="bg-white border-4 border-[#141414] rounded-[2.5rem] overflow-hidden shadow-brutal-md">
+              <div className="divide-y-4 divide-[#141414]">
+                {leaderboard.slice(0, 5).map((row, i) => (
+                  <div key={i} className={`p-6 flex items-center justify-between ${row.id === user?.id ? 'bg-indigo-50' : ''}`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black border-2 border-[#141414] shadow-brutal-sm ${
+                        i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-gray-200' : i === 2 ? 'bg-orange-300' : 'bg-white'
+                      }`}>
+                        {i + 1}
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[100px]">{leaderboard[0].name}</p>
-                        <p className="text-[10px] font-bold text-amber-600">{leaderboard[0].totalScore} pts</p>
-                      </div>
-                    </div>
-
-                    {/* 3rd Place */}
-                    <div className="flex flex-col items-center gap-3 order-3">
-                      <div className="relative">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-orange-50 dark:bg-orange-900/10 border-2 border-orange-300 dark:border-orange-800 flex items-center justify-center text-xl font-bold text-orange-600">
-                          {leaderboard[2].name.charAt(0)}
-                        </div>
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-orange-400 border-2 border-white dark:border-gray-900 flex items-center justify-center text-[10px] font-bold text-white">3</div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-gray-900 dark:text-white truncate max-w-[80px]">{leaderboard[2].name}</p>
-                        <p className="text-[8px] font-bold text-gray-400">{leaderboard[2].totalScore} pts</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                {leaderboard.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Trophy className="text-gray-300 w-6 h-6" />
-                    </div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-gray-400">No rankings yet</p>
-                  </div>
-                ) : (
-                  leaderboard.slice(3, 8).map((row, i) => (
-                    <div key={i} className={`p-4 sm:p-5 flex items-center justify-between transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/30 ${row.id === user?.id ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
-                      <div className="flex items-center gap-4">
-                        <span className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200 dark:border-gray-700">
-                          {i + 4}
-                        </span>
-                        <div>
-                          <p className={`text-sm font-bold ${row.id === user?.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-white'}`}>
-                            {row.name} {row.id === user?.id && '(You)'}
-                          </p>
-                          <p className="text-[10px] text-gray-400 font-medium tracking-tight">{row.registration_number}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="font-bold text-sm text-gray-900 dark:text-white">{row.totalScore}</p>
-                          <p className="text-[8px] font-bold uppercase text-gray-400 tracking-wider">Points</p>
-                        </div>
-                        <ChevronRight size={14} className="text-gray-300" />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* User's Rank Footer if not in top 8 */}
-              {user && !leaderboard.slice(0, 8).some(r => r.id === user.id) && (
-                <div className="p-4 bg-indigo-600 text-white flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-xs font-bold">
-                      ?
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Your Ranking</p>
-                      <p className="text-[10px] opacity-70">Keep participating to climb up!</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm">{results.reduce((acc, r) => acc + r.score, 0)}</p>
-                    <p className="text-[8px] font-bold uppercase opacity-70">Total Points</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <Trophy className="text-emerald-600 dark:text-emerald-400 w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Recent Performance</h3>
-            </div>
-            
-            <div className="space-y-4">
-              {results.length === 0 ? (
-                <div className="bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800 p-8 rounded-2xl text-center">
-                  <p className="text-xs font-bold uppercase text-gray-400">No attempts recorded yet</p>
-                </div>
-              ) : (
-                results.map((res, i) => (
-                  <div key={i} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex flex-col gap-3 shadow-sm">
-                    <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-bold text-sm text-gray-900 dark:text-white">{res.title}</h4>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider">{new Date(res.attempt_date).toLocaleDateString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-xl text-gray-900 dark:text-white">{res.score}<span className="text-xs text-gray-400">/{res.total_questions}</span></p>
-                        <button 
-                          onClick={() => setSelectedAttempt(res)}
-                          className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase hover:underline"
-                        >
-                          Review
-                        </button>
+                        <p className="text-sm font-black uppercase tracking-tight">{row.name}</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40">{row.department}</p>
                       </div>
                     </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black tracking-tighter text-indigo-600">{row.totalScore}</p>
+                      <p className="text-[8px] font-black uppercase tracking-widest opacity-40">PTS</p>
+                    </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </section>
+          </div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {selectedAttempt && (
-          <div className="fixed inset-0 bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-full max-w-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl"
-            >
-              <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{selectedAttempt.title}</h3>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Score: {selectedAttempt.score}/{selectedAttempt.total_questions}</p>
-                </div>
-                <button 
-                  onClick={() => setSelectedAttempt(null)}
-                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-400"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="p-6 overflow-y-auto space-y-6">
-                {selectedAttempt.questions?.map((q: any, idx: number) => {
-                  const studentAns = selectedAttempt.responses[q.id];
-                  const isCorrect = studentAns === q.correct_answer;
-                  
-                  return (
-                    <div key={q.id} className={`p-6 rounded-2xl border ${isCorrect ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50' : 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-800/50'}`}>
-                      <div className="flex justify-between items-start gap-4 mb-4">
-                        <p className="font-bold text-sm text-gray-900 dark:text-white">{idx + 1}. {q.question_text}</p>
-                        {isCorrect ? (
-                          <span className="bg-emerald-500 text-white text-[8px] font-bold uppercase px-2 py-1 rounded-md">Correct</span>
-                        ) : (
-                          <span className="bg-red-500 text-white text-[8px] font-bold uppercase px-2 py-1 rounded-md">Incorrect</span>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {['a', 'b', 'c', 'd'].map(opt => {
-                          const optKey = `option_${opt}` as keyof Question;
-                          const isCorrectOpt = opt === q.correct_answer;
-                          const isStudentOpt = opt === studentAns;
-                          
-                          return (
-                            <div 
-                              key={opt}
-                              className={`p-3 rounded-xl text-xs font-medium border transition-colors ${
-                                isCorrectOpt ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400' :
-                                isStudentOpt ? 'bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-800 dark:text-red-400' :
-                                'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-400'
-                              }`}
-                            >
-                              <span className="font-bold uppercase mr-2">{opt}:</span>
-                              {q[optKey] as string}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
